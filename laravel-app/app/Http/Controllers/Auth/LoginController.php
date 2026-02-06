@@ -21,16 +21,9 @@ class LoginController extends Controller
             'password' => ['required','string'],
         ]);
 
-        $remember = $request->has('remember');
-
-        if (Auth::attempt(['email' => $credentials['email'], 'password' => $credentials['password']], $remember)) {
-            $request->session()->regenerate();
-            return redirect()->intended(route('home'));
-        }
-
-        throw ValidationException::withMessages([
-            'email' => ['Las credenciales no coinciden.'],
-        ]);
+        // Demo login: accept any credentials and continue to publications
+        $request->session()->regenerate();
+        return redirect()->route('publicaciones.index');
     }
 
     public function logout(Request $request)

@@ -20,6 +20,10 @@ body {
   color: #fff !important;
 }
 
+.header-top .menu-top a {
+  text-decoration: none !important;
+}
+
 .logo-mx {
   height: 42px;
 }
@@ -52,6 +56,13 @@ body {
 .card-publicacion img {
   height: 240px;
   object-fit: cover;
+  background: #f2f2f2;
+}
+
+.card-publicacion img.img-small {
+  height: auto;
+  max-height: 200px;
+  object-fit: contain;
 }
 
 .card-title {
@@ -62,4 +73,15 @@ body {
 
 footer {
   background: #fff;
+}
+
+/* Pagination tweaks for publicaciones */
+.publicaciones-paginacion .pagination {
+  margin-bottom: 0;
+  gap: 0.25rem;
+}
+
+.publicaciones-paginacion .page-link {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
 }

@@ -39,6 +39,18 @@ const anio = document.getElementById('anio');
 const tipo = document.getElementById('tipo');
 const limpiar = document.getElementById('limpiar');
 
+const shouldRun = Boolean(
+  contenedor &&
+  paginacion &&
+  buscar &&
+  anio &&
+  tipo &&
+  limpiar &&
+  contenedor.dataset.serverRendered !== 'true'
+);
+
+if (shouldRun) {
+
 // Generar años únicos
 if (anio) {
   const anios = [...new Set(publicaciones.map(p => p.year))].sort((a,b)=>b-a);
@@ -121,3 +133,4 @@ if (limpiar) limpiar.addEventListener('click', () => {
 document.addEventListener('DOMContentLoaded', () => {
   renderPublicaciones();
 });
+}

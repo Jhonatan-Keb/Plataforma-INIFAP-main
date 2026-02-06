@@ -6,8 +6,12 @@ use App\Http\Controllers\PublicacionController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\ImageController;
 
-// Home: si quieres usar publicaciones desde BD, apunta a PublicacionController@index
-Route::get('/', [PublicacionController::class, 'index'])->name('home');
+// Home: mostrar login (solo presentacion)
+Route::get('/', function () {
+	return redirect()->route('login');
+})->name('home');
+Route::get('/publicaciones', [PublicacionController::class, 'index'])->name('publicaciones.index');
+Route::get('/publicaciones/listar', [PublicacionController::class, 'listarTodas'])->name('publicaciones.listar');
 
 Route::get('/pub_tecnicas', function(){ return view('pub_tecnicas'); })->name('pub_tecnicas');
 Route::get('/desarrolladores', function(){ return view('desarrolladores'); })->name('desarrolladores');

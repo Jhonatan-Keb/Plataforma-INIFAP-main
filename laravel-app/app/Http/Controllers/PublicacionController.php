@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Publicacion;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class PublicacionController extends Controller
 {
@@ -15,9 +17,75 @@ class PublicacionController extends Controller
     }
 
     // Public listing for espectadores
-    public function index()
+    public function index(Request $request)
     {
-        $publicaciones = Publicacion::where('is_published', true)->orderBy('year','desc')->paginate(12);
+        $buscar = $request->input('buscar');
+        $ambito = $request->input('ambito', 'todos');
+        $anio = $request->input('anio');
+        $tipo = $request->input('tipo');
+
+        $applyCommonFilters = function ($query) use ($buscar, $anio, $tipo) {
+            $query->where('is_published', true);
+
+            if (!empty($buscar)) {
+                $query->where('titulo', 'like', '%' . $buscar . '%');
+            }
+
+            if (!empty($anio)) {
+                $query->where('year', (int) $anio);
+            }
+
+            if (!empty($tipo)) {
+                $query->where('tipo', $tipo);
+            }
+
+            return $query;
+        };
+
+        $select = [
+            'id',
+            'titulo',
+            'titulo_en',
+            'year',
+            'tipo',
+            'portada_path',
+            'file_path',
+            'external_url',
+            'is_published',
+            'created_at',
+            'updated_at',
+        ];
+
+        $tecnicas = DB::table('publicaciones_tecnicas')
+            ->select(array_merge($select, [DB::raw("'tecnicas' as ambito")]));
+        $cientificas = DB::table('publicaciones_cientificas')
+            ->select(array_merge($select, [DB::raw("'cientificas' as ambito")]));
+        $ilustraciones = DB::table('publicaciones_ilustraciones')
+            ->select(array_merge($select, [DB::raw("'ilustraciones' as ambito")]));
+
+        $tecnicas = $applyCommonFilters($tecnicas);
+        $cientificas = $applyCommonFilters($cientificas);
+        $ilustraciones = $applyCommonFilters($ilustraciones);
+
+        if ($ambito === 'tecnicas') {
+            $union = $tecnicas;
+        } elseif ($ambito === 'cientificas') {
+            $union = $cientificas;
+        } elseif ($ambito === 'ilustraciones') {
+            $union = $ilustraciones;
+        } else {
+            $union = $tecnicas->unionAll($cientificas)->unionAll($ilustraciones);
+        }
+
+        $publicacionesQuery = DB::query()
+            ->fromSub($union, 'p')
+            ->orderBy('titulo')
+            ->orderBy('year');
+
+        $publicaciones = $publicacionesQuery
+            ->paginate(12)
+            ->appends($request->query());
+
         return view('publicaciones.index', compact('publicaciones'));
     }
 
@@ -95,26 +163,36 @@ class PublicacionController extends Controller
         return redirect()->route('publicaciones.index')->with('status', 'Publicación creada correctamente.');
     }
 
-    // edit/update/destroy can be added similarly with ownership checks
-}
-
-
-namespace App\Http\Controllers;
-
-use Illuminate\Http\Request;
-use App\Models\Publicacion;
-
-class PublicacionController extends Controller
-{
-    /**
-     * Retorna publicaciones desde la base de datos y permite render en la vista.
-     */
-    public function index(Request $request)
+    public function listarTodas(Request $request)
     {
-        // Ajusta la consulta según tu esquema de tabla
-        $publicaciones = Publicacion::orderBy('year', 'desc')->limit(100)->get();
+        $queryTecnicas = DB::table('publicaciones_tecnicas');
+        $queryCientificas = DB::table('publicaciones_cientificas');
 
-        // Si quieres paginar: Publicacion::paginate(12)
-        return view('index', ['publicaciones' => $publicaciones]);
+        // Aplicar filtros
+        if ($request->filled('buscar')) {
+            $queryTecnicas->where('titulo', 'like', '%' . $request->input('buscar') . '%');
+            $queryCientificas->where('titulo', 'like', '%' . $request->input('buscar') . '%');
+        }
+
+        if ($request->filled('tipo')) {
+            $queryTecnicas->where('tipo', $request->input('tipo'));
+            $queryCientificas->where('tipo', $request->input('tipo'));
+        }
+
+        if ($request->filled('year')) {
+            $queryTecnicas->where('year', $request->input('year'));
+            $queryCientificas->where('year', $request->input('year'));
+        }
+
+        $publicacionesTecnicas = $queryTecnicas->get();
+        $publicacionesCientificas = $queryCientificas->get();
+
+        // Depuración: Verificar los datos obtenidos
+        \Log::info('Publicaciones Técnicas:', $publicacionesTecnicas->toArray());
+        \Log::info('Publicaciones Científicas:', $publicacionesCientificas->toArray());
+
+        return view('publicaciones.listar', compact('publicacionesTecnicas', 'publicacionesCientificas'));
     }
+
+    // edit/update/destroy can be added similarly with ownership checks
 }
