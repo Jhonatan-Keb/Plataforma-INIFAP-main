@@ -12,7 +12,7 @@
     <div class="col-md-4">
       <div class="card shadow-sm border-0">
         <div class="card-body text-center">
-          <h5 class="card-title text-gob fw-bold">LinkB-FN</h5>
+          <h5 class="card-title text-gob fw-bold">Luis Berdugo</h5>
           <p class="card-text text-muted">Desarrollador</p>
           <div class="d-flex justify-content-center gap-3">
             <a href="https://www.instagram.com/the_linkb" target="_blank" class="btn btn-outline-gob">
@@ -58,7 +58,7 @@
       </div>
     </div>
   </div>
-  <p class="text-center text-muted mt-4">Próximamente se agregarán los perfiles de los otros desarrolladores.</p>
+  <p class="text-center text-muted mt-4"></p>
 </main>
 
 @endsection
