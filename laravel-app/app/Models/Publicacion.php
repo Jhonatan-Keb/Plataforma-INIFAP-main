@@ -8,7 +8,7 @@ use App\Models\User;
 
 class Publicacion extends Model
 {
-    protected $table = 'publicaciones';
+    protected $table = 'publicaciones_cientificas';
     protected $fillable = [
         'titulo', 'titulo_en', 'year', 'tipo', 'portada_path', 'file_path', 'external_url', 'created_by', 'is_published'
     ];

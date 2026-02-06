@@ -20,6 +20,10 @@ body {
   color: #fff !important;
 }
 
+.header-top .menu-top a {
+  text-decoration: none !important;
+}
+
 .logo-mx {
   height: 42px;
 }
@@ -62,4 +66,15 @@ body {
 
 footer {
   background: #fff;
+}
+
+/* Pagination tweaks for publicaciones */
+.publicaciones-paginacion .pagination {
+  margin-bottom: 0;
+  gap: 0.25rem;
+}
+
+.publicaciones-paginacion .page-link {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
 }

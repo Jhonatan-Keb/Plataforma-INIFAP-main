@@ -1,3 +1,6 @@
+(function(){
+"use strict";
+
 // Publicaciones Técnicas de ejemplo (sin imágenes)
 const publicaciones = [
   {
@@ -26,10 +29,18 @@ const publicaciones = [
   { titulo: "Mejoramiento genético en maíz criollo de Zacatecas", year: 2018, tipo: "pdf", portada: "imagenes/icopdf.png", url: "pdfs/tec09.pdf" }
 ];
 
+const catalogoCientificas = publicaciones.map(p => ({ ...p, categoria: 'cientificas' }));
+const catalogoTecnicas = (window.catalogoPublicaciones?.tecnicas || []).map(p => ({ ...p, categoria: 'tecnicas' }));
+const catalogo = {
+  todos: [...catalogoCientificas, ...catalogoTecnicas],
+  tecnicas: catalogoTecnicas,
+  cientificas: catalogoCientificas
+};
+
 // Parámetros
 const porPagina = 12;
 let paginaActual = 1;
-let publicacionesFiltradas = [...publicaciones];
+let publicacionesFiltradas = [...catalogo.todos];
 
 // Elementos del DOM
 const contenedor = document.getElementById('contenedor');
@@ -37,10 +48,11 @@ const paginacion = document.getElementById('paginacion');
 const buscar = document.getElementById('buscar');
 const anio = document.getElementById('anio');
 const tipo = document.getElementById('tipo');
+const ambito = document.getElementById('ambito');
 const limpiar = document.getElementById('limpiar');
 
 // Generar años únicos
-const anios = [...new Set(publicaciones.map(p => p.year))].sort((a, b) => b - a);
+const anios = [...new Set(catalogo.todos.map(p => p.year))].sort((a, b) => b - a);
 anio.innerHTML = '<option value="">Todos los años</option>' + anios.map(y => `<option value="${y}">${y}</option>`).join('');
 
 // Renderizado de tarjetas
@@ -50,9 +62,21 @@ function renderPublicaciones() {
   const fin = inicio + porPagina;
   const visibles = publicacionesFiltradas.slice(inicio, fin);
 
+  if (!visibles.length) {
+    const aviso = document.createElement('div');
+    aviso.className = 'alert alert-light text-center border';
+    aviso.textContent = 'No hay resultados con los filtros seleccionados.';
+    contenedor.appendChild(aviso);
+    paginacion.innerHTML = '';
+    return;
+  }
+
   visibles.forEach(p => {
     const card = document.createElement('div');
     card.className = 'col-12 mb-2';
+    const badge = p.categoria === 'cientificas'
+      ? '<span class="badge bg-secondary ms-2">Científica</span>'
+      : '<span class="badge bg-success ms-2">Técnica</span>';
     card.innerHTML = `
       <div class="card card-publicacion">
         <div class="row g-0">
@@ -63,7 +87,7 @@ function renderPublicaciones() {
             <div class="card-body d-flex flex-column">
               <h6 class="card-title text-gob fw-bold">${p.titulo}</h6>
               ${p.tituloIngles ? `<p class="text-gob small">${p.tituloIngles}</p>` : ''}
-              <p class="text-gob small mb-2">Año: ${p.year}</p>
+              <p class="text-gob small mb-2">Año: ${p.year} ${badge}</p>
               <a href="${p.url}" target="_blank" class="mt-auto btn btn-outline-gob btn-sm align-self-start">Ver publicación</a>
             </div>
           </div>
@@ -93,11 +117,23 @@ function renderPaginacion() {
 }
 
 // Filtros
+function baseSegunAmbito() {
+  switch (ambito.value) {
+    case 'tecnicas':
+      return catalogo.tecnicas;
+    case 'cientificas':
+      return catalogo.cientificas;
+    default:
+      return catalogo.todos;
+  }
+}
+
 function filtrar() {
-  const q = buscar.value.toLowerCase();
+  const q = buscar.value.toLowerCase().trim();
   const y = anio.value;
   const t = tipo.value;
-  publicacionesFiltradas = publicaciones.filter(p =>
+  const base = baseSegunAmbito();
+  publicacionesFiltradas = base.filter(p =>
     (!y || p.year == y) &&
     (!t || p.tipo === t) &&
     ((p.titulo + ' ' + (p.tituloIngles || '')).toLowerCase().includes(q))
@@ -110,12 +146,17 @@ function filtrar() {
 buscar.addEventListener('input', filtrar);
 anio.addEventListener('change', filtrar);
 tipo.addEventListener('change', filtrar);
+ambito.addEventListener('change', filtrar);
 limpiar.addEventListener('click', () => {
   buscar.value = '';
   anio.value = '';
   tipo.value = '';
+  ambito.value = 'todos';
   filtrar();
 });
 
 // Inicial
-renderPublicaciones();
+ambito.value = ambito.value || 'todos';
+filtrar();
+
+})();

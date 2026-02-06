@@ -33,12 +33,11 @@
         <li class="nav-item"><a class="nav-link text-white" href="#">Trámites</a></li>
         <li class="nav-item"><a class="nav-link text-white" href="#">Blog</a></li>
         <li class="nav-item"><a class="nav-link text-white" href="#">Multimedia</a></li>
-      </ul>
-    </nav>
-    <nav class="bg-light py-2">
-      <ul class="nav justify-content-center">
-        <li class="nav-item"><a class="nav-link text-gob" href="{{ url('/') }}">Publicaciones Técnicas</a></li>
-        <li class="nav-item"><a class="nav-link active text-gob" href="#">Publicaciones Científicas</a></li>
+        <li class="nav-item"><a class="nav-link text-white" href="#">Prensa</a></li>
+        <li class="nav-item"><a class="nav-link text-white" href="#">Agenda</a></li>
+        <li class="nav-item"><a class="nav-link text-white" href="#">Acciones y programas</a></li>
+        <li class="nav-item"><a class="nav-link text-white" href="#">Documentos</a></li>
+        <li class="nav-item"><a class="nav-link text-white" href="#">Transparencia</a></li>
       </ul>
     </nav>
   </header>
