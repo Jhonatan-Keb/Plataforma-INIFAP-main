@@ -60,22 +60,29 @@ class PublicacionController extends Controller
             ->select(array_merge($select, [DB::raw("'tecnicas' as ambito")]));
         $cientificas = DB::table('publicaciones_cientificas')
             ->select(array_merge($select, [DB::raw("'cientificas' as ambito")]));
+        $ilustraciones = DB::table('publicaciones_ilustraciones')
+            ->select(array_merge($select, [DB::raw("'ilustraciones' as ambito")]));
 
         $tecnicas = $applyCommonFilters($tecnicas);
         $cientificas = $applyCommonFilters($cientificas);
+        $ilustraciones = $applyCommonFilters($ilustraciones);
 
         if ($ambito === 'tecnicas') {
             $union = $tecnicas;
         } elseif ($ambito === 'cientificas') {
             $union = $cientificas;
+        } elseif ($ambito === 'ilustraciones') {
+            $union = $ilustraciones;
         } else {
-            $union = $tecnicas->unionAll($cientificas);
+            $union = $tecnicas->unionAll($cientificas)->unionAll($ilustraciones);
         }
 
-        $publicaciones = DB::query()
+        $publicacionesQuery = DB::query()
             ->fromSub($union, 'p')
-            ->orderByDesc('year')
-            ->orderByDesc('id')
+            ->orderBy('titulo')
+            ->orderBy('year');
+
+        $publicaciones = $publicacionesQuery
             ->paginate(12)
             ->appends($request->query());
 

@@ -131,6 +131,11 @@ const publicacionesTecnicas = [
   { titulo: "Sistema de producción de forrajes de temporal una opción para la reconversión productiva", year: 2014, tipo: "pdf", portada: "imagenes/sproduccion14.png", url: "http://zacatecas.inifap.gob.mx/modulo/mostrarPub.php?id=96&t=1" },
 ];
 
+const publicacionesIlustraciones = [
+  { titulo: "Infografia Agricultura 1", year: 2024, tipo: "ilustraciones", portada: "imagenes/INFOGRAFIA-AGRICULTURA-1.png", url: "" },
+  { titulo: "Ilustracion Inifap", year: 2024, tipo: "ilustraciones", portada: "imagenes/Ilustracion Inifap.jpg", url: "" }
+];
+
 const publicacionesCientificas = [
   {
     titulo: "Efecto de la fertilización en maíz bajo condiciones de temporal",
@@ -160,5 +165,6 @@ const publicacionesCientificas = [
 
 window.catalogoPublicaciones = {
   tecnicas: publicacionesTecnicas,
-  cientificas: publicacionesCientificas
+  cientificas: publicacionesCientificas,
+  ilustraciones: publicacionesIlustraciones
 };

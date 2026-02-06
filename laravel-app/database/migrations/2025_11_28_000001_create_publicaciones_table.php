@@ -14,7 +14,7 @@ return new class extends Migration
             $table->string('titulo');
             $table->string('titulo_en')->nullable();
             $table->smallInteger('year')->nullable();
-            $table->enum('tipo', ['pdf', 'video', 'imagen', 'folleto']); // File types
+            $table->enum('tipo', ['pdf', 'video', 'imagen', 'folleto', 'ilustraciones']); // File types
             $table->string('portada_path')->nullable();
             $table->string('file_path')->nullable();
             $table->string('external_url')->nullable();
@@ -29,7 +29,22 @@ return new class extends Migration
             $table->string('titulo');
             $table->string('titulo_en')->nullable();
             $table->smallInteger('year')->nullable();
-            $table->enum('tipo', ['pdf', 'video', 'imagen', 'folleto']); // File types
+            $table->enum('tipo', ['pdf', 'video', 'imagen', 'folleto', 'ilustraciones']); // File types
+            $table->string('portada_path')->nullable();
+            $table->string('file_path')->nullable();
+            $table->string('external_url')->nullable();
+            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->boolean('is_published')->default(true);
+            $table->timestamps();
+        });
+
+        // Create table for publicaciones_ilustraciones
+        Schema::create('publicaciones_ilustraciones', function (Blueprint $table) {
+            $table->id();
+            $table->string('titulo');
+            $table->string('titulo_en')->nullable();
+            $table->smallInteger('year')->nullable();
+            $table->enum('tipo', ['pdf', 'video', 'imagen', 'folleto', 'ilustraciones']); // File types
             $table->string('portada_path')->nullable();
             $table->string('file_path')->nullable();
             $table->string('external_url')->nullable();
@@ -43,5 +58,6 @@ return new class extends Migration
     {
         Schema::dropIfExists('publicaciones_cientificas');
         Schema::dropIfExists('publicaciones_tecnicas');
+        Schema::dropIfExists('publicaciones_ilustraciones');
     }
 };

@@ -162,5 +162,31 @@ class PublicacionesSeeder extends Seeder
         if (!empty($publicacionesCientificas)) {
             DB::table('publicaciones_cientificas')->insert($publicacionesCientificas);
         }
+
+        // Datos para publicaciones ilustraciones
+        $publicacionesIlustracionesRaw = $this->loadCatalogo($catalogPath, 'publicacionesIlustraciones');
+        $publicacionesIlustraciones = array_map(function (array $p) use ($now) {
+            $url = $p['url'] ?? null;
+            $isHttp = is_string($url) && preg_match('/^https?:\/\//i', $url);
+
+            return [
+                'titulo' => $p['titulo'] ?? '',
+                'titulo_en' => $p['titulo_en'] ?? $p['titulo_ingles'] ?? null,
+                'year' => $p['year'] ?? null,
+                'tipo' => $p['tipo'] ?? 'ilustraciones',
+                'portada_path' => $p['portada_path'] ?? $p['portada'] ?? null,
+                'file_path' => $isHttp ? null : $url,
+                'external_url' => $isHttp ? $url : null,
+                'created_by' => null,
+                'is_published' => true,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }, $publicacionesIlustracionesRaw);
+
+        DB::table('publicaciones_ilustraciones')->delete();
+        if (!empty($publicacionesIlustraciones)) {
+            DB::table('publicaciones_ilustraciones')->insert($publicacionesIlustraciones);
+        }
     }
 }

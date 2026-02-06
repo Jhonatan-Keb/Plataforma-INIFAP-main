@@ -47,7 +47,9 @@
   <footer class="text-center py-4 border-top text-muted small">
     © INIFAP C.E. Zacatecas
     <br>
-    <a href="{{ url('/desarrolladores') }}" class="btn btn-outline-gob btn-sm mt-2">Desarrolladores</a>
+    @if(!request()->is('desarrolladores'))
+      <a href="{{ url('/desarrolladores') }}" class="btn btn-outline-gob btn-sm mt-2">Desarrolladores</a>
+    @endif
   </footer>
 
   <!-- Bootstrap JS -->
