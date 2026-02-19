@@ -30,6 +30,10 @@
               <option value="folleto" {{ request('tipo') == 'folleto' ? 'selected' : '' }}>Folleto</option>
               <option value="ilustraciones" {{ request('tipo') == 'ilustraciones' ? 'selected' : '' }}>Imagen</option>
             </select>
+            <select name="orden" class="form-select mb-3" onchange="document.getElementById('filtros-form').submit();">
+              <option value="reciente" {{ request('orden', 'reciente') == 'reciente' ? 'selected' : '' }}>Más recientes primero</option>
+              <option value="antiguo" {{ request('orden') == 'antiguo' ? 'selected' : '' }}>Más antiguos primero</option>
+            </select>
             <button type="button" class="btn btn-gob w-100" onclick="window.location='{{ route('publicaciones.index') }}'">Limpiar filtros</button>
           </form>
         </div>
@@ -37,7 +41,10 @@
     </aside>
 
     <section class="col-md-9">
-      <h4 class="fw-bold text-gob mb-3">Publicaciones</h4>
+      <div class="mb-3 d-flex justify-content-between align-items-center">
+        <span class="fw-bold">Resultados {{ $publicaciones->total() }}</span>
+        <a href="{{ route('contribuyente') }}" class="btn btn-gob">Hacerme contribuyente</a>
+      </div>
       <div id="contenedor" class="row g-4" data-server-rendered="true">
         @forelse($publicaciones as $publicacion)
           <div class="col-md-4">

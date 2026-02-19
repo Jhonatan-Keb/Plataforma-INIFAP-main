@@ -16,14 +16,14 @@ class LoginController extends Controller
 
     public function login(Request $request)
     {
-        $credentials = $request->validate([
-            'email' => ['required','string'],
-            'password' => ['required','string'],
+        // Redirigir al formulario de carga de contenido
+        $request->validate([
+            'email' => ['required', 'string'],
+            'password' => ['required', 'string'],
         ]);
 
-        // Demo login: accept any credentials and continue to publications
         $request->session()->regenerate();
-        return redirect()->route('publicaciones.index');
+        return redirect()->route('publicaciones.formulario');
     }
 
     public function logout(Request $request)

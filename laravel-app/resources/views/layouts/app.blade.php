@@ -15,7 +15,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap" rel="stylesheet">
   @stack('head')
 </head>
-<body>
+<body class="d-flex flex-column min-vh-100">
   <header>
     <div class="header-top d-flex justify-content-between align-items-center px-4">
       <div class="d-flex align-items-center">
@@ -42,7 +42,10 @@
     </nav>
   </header>
 
-  @yield('content')
+
+  <main class="flex-fill">
+    @yield('content')
+  </main>
 
   <footer class="text-center py-4 border-top text-muted small">
     © INIFAP C.E. Zacatecas
