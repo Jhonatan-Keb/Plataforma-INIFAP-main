@@ -23,6 +23,7 @@ class PublicacionController extends Controller
         $ambito = $request->input('ambito', 'todos');
         $anio = $request->input('anio');
         $tipo = $request->input('tipo');
+        $orden = $request->input('orden', 'reciente'); // reciente o antiguo
 
         $applyCommonFilters = function ($query) use ($buscar, $anio, $tipo) {
             $query->where('is_published', true);
@@ -78,9 +79,14 @@ class PublicacionController extends Controller
         }
 
         $publicacionesQuery = DB::query()
-            ->fromSub($union, 'p')
-            ->orderBy('titulo')
-            ->orderBy('year');
+            ->fromSub($union, 'p');
+        // Ordenar por antigüedad
+        if ($orden === 'antiguo') {
+            $publicacionesQuery->orderBy('year', 'asc');
+        } else {
+            $publicacionesQuery->orderBy('year', 'desc');
+        }
+        $publicacionesQuery->orderBy('titulo');
 
         $publicaciones = $publicacionesQuery
             ->paginate(12)
