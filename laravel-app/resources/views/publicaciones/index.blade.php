@@ -41,9 +41,8 @@
     </aside>
 
     <section class="col-md-9">
-      <div class="mb-3 d-flex justify-content-between align-items-center">
+      <div class="mb-3">
         <span class="fw-bold">Resultados {{ $publicaciones->total() }}</span>
-        <a href="{{ route('contribuyente') }}" class="btn btn-gob">Hacerme contribuyente</a>
       </div>
       <div id="contenedor" class="row g-4" data-server-rendered="true">
         @forelse($publicaciones as $publicacion)
@@ -125,6 +124,11 @@
     </section>
   </div>
 </main>
+
+<!-- Botón flotante en esquina inferior izquierda -->
+<a href="{{ route('colaborador') }}" class="btn btn-gob" style="position: fixed; bottom: 20px; left: 20px; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">
+  Hacerme colaborador
+</a>
 
 <div class="modal fade" id="imagenModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg">

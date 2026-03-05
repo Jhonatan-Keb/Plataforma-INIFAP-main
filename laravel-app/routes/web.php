@@ -5,11 +5,14 @@ use App\Http\Controllers\PageController;
 use App\Http\Controllers\PublicacionController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\ImageController;
+use App\Http\Controllers\FileController;
 
 // Home: mostrar publicaciones
 Route::get('/', [PublicacionController::class, 'index'])->name('home');
-// Vista para hacerse contribuyente
-Route::get('/contribuyente', function() { return view('contribuyente'); })->name('contribuyente');
+// Vista para hacerse colaborador
+Route::get('/colaborador', function() { return view('contribuyente'); })->name('colaborador');
+// Redirección de ruta antigua
+Route::get('/contribuyente', function() { return redirect()->route('colaborador'); });
 Route::get('/publicaciones', [PublicacionController::class, 'index'])->name('publicaciones.index');
 Route::get('/publicaciones/listar', [PublicacionController::class, 'listarTodas'])->name('publicaciones.listar');
 
@@ -36,4 +39,10 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout')->midd
 
 // Serve images from the repository's `imagenes` folder (safe guard included)
 Route::get('/imagenes/{path}', [ImageController::class, 'show'])->where('path', '.*');
+
+// Rutas para gestión de archivos
+Route::post('/files', [FileController::class, 'store'])->name('files.store');
+Route::get('/files', [FileController::class, 'index'])->name('files.index');
+Route::get('/files/{id}/download', [FileController::class, 'download'])->name('files.download');
+Route::delete('/files/{id}', [FileController::class, 'destroy'])->name('files.destroy');
 
