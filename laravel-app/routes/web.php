@@ -26,6 +26,7 @@ Route::get('/publicaciones/subir', function() {
 
 // Ruta para crear publicaciones
 Route::get('/publicaciones/create', [PublicacionController::class, 'create'])->name('publicaciones.create');
+Route::post('/publicaciones', [PublicacionController::class, 'store'])->name('publicaciones.store');
 
 // Ruta para el formulario de carga de contenido
 Route::get('/publicaciones/formulario', function() {

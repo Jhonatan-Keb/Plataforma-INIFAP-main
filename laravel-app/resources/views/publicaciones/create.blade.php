@@ -19,26 +19,51 @@
 
         <div class="mb-3">
           <label class="form-label">Año</label>
-          <input type="text" name="year" class="form-control @error('year') is-invalid @enderror" value="{{ old('year') }}">
-          @error('year') <div class="invalid-feedback">{{ $message }}</div> @enderror
+          <input type="text" name="ano" class="form-control @error('ano') is-invalid @enderror" value="{{ old('ano') }}">
+          @error('ano') <div class="invalid-feedback">{{ $message }}</div> @enderror
         </div>
 
         <div class="mb-3">
-          <label class="form-label">Descripción</label>
-          <textarea name="descripcion" class="form-control @error('descripcion') is-invalid @enderror" rows="4">{{ old('descripcion') }}</textarea>
-          @error('descripcion') <div class="invalid-feedback">{{ $message }}</div> @enderror
+          <label class="form-label">Categoría</label>
+          <select name="categoria" class="form-select @error('categoria') is-invalid @enderror">
+            <option value="">Seleccione una categoría</option>
+            <option value="cientifica" {{ old('categoria') == 'cientifica' ? 'selected' : '' }}>Publicación Científica</option>
+            <option value="tecnica" {{ old('categoria') == 'tecnica' ? 'selected' : '' }}>Publicación Técnica</option>
+            <option value="ilustracion" {{ old('categoria') == 'ilustracion' ? 'selected' : '' }}>Ilustración</option>
+          </select>
+          @error('categoria') <div class="invalid-feedback">{{ $message }}</div> @enderror
         </div>
 
         <div class="mb-3">
-          <label class="form-label">Portada (JPG/PNG, max 5MB)</label>
-          <input type="file" name="portada" class="form-control @error('portada') is-invalid @enderror" accept="image/*">
-          @error('portada') <div class="invalid-feedback">{{ $message }}</div> @enderror
+          <label class="form-label">Descripción / Mensaje (opcional)</label>
+          <textarea name="mensaje" class="form-control @error('mensaje') is-invalid @enderror" rows="4">{{ old('mensaje') }}</textarea>
+          @error('mensaje') <div class="invalid-feedback">{{ $message }}</div> @enderror
         </div>
 
-        <div class="mb-3">
-          <label class="form-label">Archivo (PDF/MP3/MP4/JPG/PNG)</label>
-          <input type="file" name="archivo" class="form-control @error('archivo') is-invalid @enderror">
-          @error('archivo') <div class="invalid-feedback">{{ $message }}</div> @enderror
+        <div class="mb-4">
+          <label class="form-label fw-bold">Portada (JPG/PNG, max 5MB)</label>
+          <div class="drop-zone @error('portada') border-danger @enderror">
+              <input type="file" name="portada" id="portada" accept="image/*">
+              <div class="drop-zone-text">
+                  <i>📁</i>
+                  <span>Arrastra y suelta la portada aquí o haz clic para seleccionar</span>
+                  <span class="drop-zone-file-name"></span>
+              </div>
+          </div>
+          @error('portada') <div class="text-danger small mt-1">{{ $message }}</div> @enderror
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label fw-bold">Archivo (PDF/MP3/MP4/JPG/PNG)</label>
+          <div class="drop-zone @error('archivo') border-danger @enderror" style="border-color: #0d6efd;">
+              <input type="file" name="archivo" id="archivo">
+              <div class="drop-zone-text">
+                  <i style="color: #0d6efd;">📄</i>
+                  <span>Arrastra y suelta tu archivo principal aquí o haz clic para seleccionar</span>
+                  <span class="drop-zone-file-name" style="color: #0d6efd;"></span>
+              </div>
+          </div>
+          @error('archivo') <div class="text-danger small mt-1">{{ $message }}</div> @enderror
         </div>
 
         <div class="mb-3">
@@ -47,12 +72,14 @@
           @error('external_url') <div class="invalid-feedback">{{ $message }}</div> @enderror
         </div>
 
-        <div class="mb-3">
+        <div class="mb-3 text-end pt-3">
+          <a href="{{ route('publicaciones.index') }}" class="btn btn-outline-secondary me-2">Cancelar</a>
           <button class="btn btn-gob">Publicar</button>
-          <a href="{{ route('publicaciones.index') }}" class="btn btn-outline-secondary">Cancelar</a>
         </div>
       </form>
     </div>
   </div>
 </main>
+
+@include('publicaciones._dropzone')
 @endsection

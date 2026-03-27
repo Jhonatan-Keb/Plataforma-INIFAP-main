@@ -15,12 +15,20 @@
                 <label for="descripcion" class="form-label fw-bold">Descripción</label>
                 <textarea class="form-control" id="descripcion" name="descripcion" rows="3" placeholder="Escribe una descripción"></textarea>
             </div>
-            <div class="mb-3">
-                <label for="file" class="form-label fw-bold">Archivo</label>
-                <input class="form-control" type="file" id="file" name="file">
+            <div class="mb-4">
+                <label class="form-label fw-bold">Archivo</label>
+                <div class="drop-zone @error('file') border-danger @enderror" style="border-color: #0d6efd;">
+                    <input type="file" id="file" name="file">
+                    <div class="drop-zone-text">
+                        <i style="color: #0d6efd;">📄</i>
+                        <span>Arrastra y suelta tu archivo aquí o haz clic para seleccionar</span>
+                        <span class="drop-zone-file-name" style="color: #0d6efd;"></span>
+                    </div>
+                </div>
             </div>
             <button type="submit" class="btn btn-gob w-100">Subir publicación</button>
         </form>
     </div>
 </div>
+@include('publicaciones._dropzone')
 @endsection

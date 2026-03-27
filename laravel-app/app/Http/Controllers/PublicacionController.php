@@ -6,91 +6,43 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Publicacion;
+use App\Models\MediaArchivo;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
 
 class PublicacionController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('auth')->only(['create','store','edit','update','destroy']);
+        $this->middleware('auth')->only(['create', 'store', 'edit', 'update', 'destroy']);
     }
 
-    // Public listing for espectadores
     public function index(Request $request)
     {
-        $buscar = $request->input('buscar');
-        $ambito = $request->input('ambito', 'todos');
-        $anio = $request->input('anio');
-        $tipo = $request->input('tipo');
-        $orden = $request->input('orden', 'reciente'); // reciente o antiguo
+        $buscar   = $request->input('buscar');
+        $categoria = $request->input('categoria', 'todas'); // cientifica|tecnica|ilustracion|todas
+        $anio     = $request->input('anio');
+        $tipo     = $request->input('tipo');
+        $orden    = $request->input('orden', 'reciente');
 
-        $applyCommonFilters = function ($query) use ($buscar, $anio, $tipo) {
-            $query->where('is_published', true);
+        $query = Publicacion::where('is_published', true);
 
-            if (!empty($buscar)) {
-                $query->where('titulo', 'like', '%' . $buscar . '%');
-            }
-
-            if (!empty($anio)) {
-                $query->where('year', (int) $anio);
-            }
-
-            if (!empty($tipo)) {
-                $query->where('tipo', $tipo);
-            }
-
-            return $query;
-        };
-
-        $select = [
-            'id',
-            'titulo',
-            'titulo_en',
-            'year',
-            'tipo',
-            'portada_path',
-            'file_path',
-            'external_url',
-            'is_published',
-            'created_at',
-            'updated_at',
-        ];
-
-        $tecnicas = DB::table('publicaciones_tecnicas')
-            ->select(array_merge($select, [DB::raw("'tecnicas' as ambito")]));
-        $cientificas = DB::table('publicaciones_cientificas')
-            ->select(array_merge($select, [DB::raw("'cientificas' as ambito")]));
-        $ilustraciones = DB::table('publicaciones_ilustraciones')
-            ->select(array_merge($select, [DB::raw("'ilustraciones' as ambito")]));
-
-        $tecnicas = $applyCommonFilters($tecnicas);
-        $cientificas = $applyCommonFilters($cientificas);
-        $ilustraciones = $applyCommonFilters($ilustraciones);
-
-        if ($ambito === 'tecnicas') {
-            $union = $tecnicas;
-        } elseif ($ambito === 'cientificas') {
-            $union = $cientificas;
-        } elseif ($ambito === 'ilustraciones') {
-            $union = $ilustraciones;
-        } else {
-            $union = $tecnicas->unionAll($cientificas)->unionAll($ilustraciones);
+        if (!empty($buscar)) {
+            $query->where('titulo', 'ilike', '%' . $buscar . '%');
+        }
+        if (!empty($anio)) {
+            $query->where('ano', (int) $anio);
+        }
+        if (!empty($tipo)) {
+            $query->where('tipo', $tipo);
+        }
+        if ($categoria !== 'todas') {
+            $query->where('categoria', $categoria);
         }
 
-        $publicacionesQuery = DB::query()
-            ->fromSub($union, 'p');
-        // Ordenar por antigüedad
-        if ($orden === 'antiguo') {
-            $publicacionesQuery->orderBy('year', 'asc');
-        } else {
-            $publicacionesQuery->orderBy('year', 'desc');
-        }
-        $publicacionesQuery->orderBy('titulo');
+        $query->orderBy('ano', $orden === 'antiguo' ? 'asc' : 'desc')
+              ->orderBy('titulo');
 
-        $publicaciones = $publicacionesQuery
-            ->paginate(12)
-            ->appends($request->query());
+        $publicaciones = $query->paginate(12)->appends($request->query());
 
         return view('publicaciones.index', compact('publicaciones'));
     }
@@ -108,97 +60,126 @@ class PublicacionController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'titulo' => 'required|string|max:255',
-            'titulo_en' => 'nullable|string|max:255',
-            'year' => 'nullable|integer',
-            'tipo' => 'nullable|string|max:50',
-            'portada' => 'nullable|image|max:5120', // 5 MB
-            'file' => 'nullable|file',
+            'titulo'       => 'required|string|max:500',
+            'titulo_en'    => 'nullable|string|max:500',
+            'ano'          => 'nullable|integer|min:1900|max:2100',
+            'categoria'    => 'required|in:cientifica,tecnica,ilustracion',
+            'tipo'         => 'nullable|string|max:50',
             'external_url' => 'nullable|url',
+            'mensaje'      => 'nullable|string|max:500',
+            'portada'      => 'nullable|image|max:5120',   // 5 MB
+            'archivo'      => 'nullable|file|max:204800',  // 200 MB
         ]);
 
-        $filePath = null;
         $portadaPath = null;
+        $filePath    = null;
 
-        // handle portada image
         if ($request->hasFile('portada')) {
             $portadaPath = $request->file('portada')->store('uploads/portadas', 'public');
         }
 
-        // handle main file with custom size checks depending on mime
-        if ($request->hasFile('file')) {
-            $file = $request->file('file');
-            $ext = strtolower($file->getClientOriginalExtension());
-            $size = $file->getSize(); // bytes
+        if ($request->hasFile('archivo')) {
+            $file = $request->file('archivo');
+            $ext  = strtolower($file->getClientOriginalExtension());
+            $mime = $file->getMimeType();
 
-            // size limits in bytes
-            $limits = [
-                'pdf' => 20 * 1024 * 1024,
-                'mp3' => 20 * 1024 * 1024,
-                'mp4' => 200 * 1024 * 1024,
-                'jpg' => 5 * 1024 * 1024,
+            $limites = [
+                'pdf'  => 20 * 1024 * 1024,
+                'mp3'  => 50 * 1024 * 1024,
+                'mp4'  => 200 * 1024 * 1024,
+                'webm' => 200 * 1024 * 1024,
+                'avi'  => 200 * 1024 * 1024,
+                'mov'  => 200 * 1024 * 1024,
+                'jpg'  => 5 * 1024 * 1024,
                 'jpeg' => 5 * 1024 * 1024,
-                'png' => 5 * 1024 * 1024,
+                'png'  => 5 * 1024 * 1024,
+                'gif'  => 10 * 1024 * 1024,
+                'webp' => 5 * 1024 * 1024,
+                'wav'  => 50 * 1024 * 1024,
+                'ogg'  => 50 * 1024 * 1024,
+                'aac'  => 50 * 1024 * 1024,
+                'doc'  => 20 * 1024 * 1024,
+                'docx' => 20 * 1024 * 1024,
+                'xls'  => 20 * 1024 * 1024,
+                'xlsx' => 20 * 1024 * 1024,
+                'ppt'  => 30 * 1024 * 1024,
+                'pptx' => 30 * 1024 * 1024,
             ];
 
-            if (isset($limits[$ext]) && $size > $limits[$ext]) {
-                return back()->withInput()->withErrors(['file' => 'El archivo excede el tamaño máximo permitido para su tipo.']);
+            if (!array_key_exists($ext, $limites)) {
+                return back()->withInput()->withErrors(['archivo' => 'Tipo de archivo no permitido.']);
+            }
+            if ($file->getSize() > $limites[$ext]) {
+                return back()->withInput()->withErrors(['archivo' => 'El archivo excede el tamaño máximo permitido.']);
             }
 
-            // accept only allowed extensions
-            $allowed = array_keys($limits);
-            if (!in_array($ext, $allowed)) {
-                return back()->withInput()->withErrors(['file' => 'Tipo de archivo no permitido.']);
-            }
+            $filePath = $file->store('uploads/archivos', 'public');
 
-            $filePath = $file->store('uploads/files', 'public');
+            // Registrar también en media_archivos para soporte multimedia completo
+            $tipoMedio = MediaArchivo::resolverTipoMedio($mime);
+        }
+
+        // Use media category (video, imagen, audio, gif, documento) instead of raw extension
+        $tipo = $request->input('tipo');
+        if (empty($tipo) && isset($tipoMedio)) {
+            $tipo = $tipoMedio;
+        } elseif (empty($tipo)) {
+            $tipo = $ext ?? 'pdf';
         }
 
         $publicacion = Publicacion::create([
-            'titulo' => $request->input('titulo'),
-            'titulo_en' => $request->input('titulo_en'),
-            'year' => $request->input('year'),
-            'tipo' => $request->input('tipo'),
+            'titulo'       => $request->input('titulo'),
+            'titulo_en'    => $request->input('titulo_en'),
+            'ano'          => $request->input('ano'),
+            'categoria'    => $request->input('categoria'),
+            'tipo'         => $tipo,
             'portada_path' => $portadaPath,
-            'file_path' => $filePath,
+            'file_path'    => $filePath,
             'external_url' => $request->input('external_url'),
-            'created_by' => Auth::id(),
+            'mensaje'      => $request->input('mensaje'),
+            'created_by'   => Auth::id(),
             'is_published' => true,
         ]);
 
-        return redirect()->route('publicaciones.index')->with('status', 'Publicación creada correctamente.');
+        // Si se subió un archivo, guardarlo también en media_archivos
+        if ($request->hasFile('archivo') && $filePath) {
+            $file = $request->file('archivo');
+            MediaArchivo::create([
+                'publicacion_id'  => $publicacion->id,
+                'nombre_original' => $file->getClientOriginalName(),
+                'ruta'            => $filePath,
+                'tipo_mime'       => $file->getMimeType(),
+                'tipo_medio'      => $tipoMedio ?? 'documento',
+                'extension'       => strtolower($file->getClientOriginalExtension()),
+                'tamanio'         => $file->getSize(),
+                'es_portada'      => false,
+            ]);
+        }
+
+        return redirect()->route('publicaciones.index')
+                         ->with('status', 'Publicación creada correctamente.');
     }
 
     public function listarTodas(Request $request)
     {
-        $queryTecnicas = DB::table('publicaciones_tecnicas');
-        $queryCientificas = DB::table('publicaciones_cientificas');
+        $query = Publicacion::query();
 
-        // Aplicar filtros
         if ($request->filled('buscar')) {
-            $queryTecnicas->where('titulo', 'like', '%' . $request->input('buscar') . '%');
-            $queryCientificas->where('titulo', 'like', '%' . $request->input('buscar') . '%');
+            $query->where('titulo', 'ilike', '%' . $request->input('buscar') . '%');
         }
-
         if ($request->filled('tipo')) {
-            $queryTecnicas->where('tipo', $request->input('tipo'));
-            $queryCientificas->where('tipo', $request->input('tipo'));
+            $query->where('tipo', $request->input('tipo'));
+        }
+        if ($request->filled('ano') || $request->filled('year')) {
+            $query->where('ano', $request->input('ano') ?? $request->input('year'));
         }
 
-        if ($request->filled('year')) {
-            $queryTecnicas->where('year', $request->input('year'));
-            $queryCientificas->where('year', $request->input('year'));
-        }
+        $publicaciones = $query->orderBy('ano', 'desc')->get();
 
-        $publicacionesTecnicas = $queryTecnicas->get();
-        $publicacionesCientificas = $queryCientificas->get();
+        $publicacionesTecnicas      = $publicaciones->where('categoria', 'tecnica');
+        $publicacionesCientificas   = $publicaciones->where('categoria', 'cientifica');
+        $publicacionesIlustraciones = $publicaciones->where('categoria', 'ilustracion');
 
-        // Depuración: Verificar los datos obtenidos
-        \Log::info('Publicaciones Técnicas:', $publicacionesTecnicas->toArray());
-        \Log::info('Publicaciones Científicas:', $publicacionesCientificas->toArray());
-
-        return view('publicaciones.listar', compact('publicacionesTecnicas', 'publicacionesCientificas'));
+        return view('publicaciones.listar', compact('publicacionesTecnicas', 'publicacionesCientificas', 'publicacionesIlustraciones'));
     }
-
-    // edit/update/destroy can be added similarly with ownership checks
 }

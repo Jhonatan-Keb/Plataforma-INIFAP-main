@@ -8,46 +8,19 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Create table for publicaciones_cientificas
-        Schema::create('publicaciones_cientificas', function (Blueprint $table) {
+        Schema::create('publicaciones', function (Blueprint $table) {
             $table->id();
-            $table->string('titulo');
-            $table->string('titulo_en')->nullable();
-            $table->smallInteger('year')->nullable();
-            $table->enum('tipo', ['pdf', 'video', 'imagen', 'folleto', 'ilustraciones']); // File types
-            $table->string('portada_path')->nullable();
-            $table->string('file_path')->nullable();
-            $table->string('external_url')->nullable();
-            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->boolean('is_published')->default(true);
-            $table->timestamps();
-        });
-
-        // Create table for publicaciones_tecnicas
-        Schema::create('publicaciones_tecnicas', function (Blueprint $table) {
-            $table->id();
-            $table->string('titulo');
-            $table->string('titulo_en')->nullable();
-            $table->smallInteger('year')->nullable();
-            $table->enum('tipo', ['pdf', 'video', 'imagen', 'folleto', 'ilustraciones']); // File types
-            $table->string('portada_path')->nullable();
-            $table->string('file_path')->nullable();
-            $table->string('external_url')->nullable();
-            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->boolean('is_published')->default(true);
-            $table->timestamps();
-        });
-
-        // Create table for publicaciones_ilustraciones
-        Schema::create('publicaciones_ilustraciones', function (Blueprint $table) {
-            $table->id();
-            $table->string('titulo');
-            $table->string('titulo_en')->nullable();
-            $table->smallInteger('year')->nullable();
-            $table->enum('tipo', ['pdf', 'video', 'imagen', 'folleto', 'ilustraciones']); // File types
-            $table->string('portada_path')->nullable();
-            $table->string('file_path')->nullable();
-            $table->string('external_url')->nullable();
+            $table->string('titulo', 500);
+            $table->string('titulo_en', 500)->nullable();
+            $table->smallInteger('ano')->nullable();
+            $table->enum('categoria', ['cientifica', 'tecnica', 'ilustracion']);
+            // tipo: clase de archivo principal (pdf, video, imagen, folleto, audio, gif, documento)
+            $table->string('tipo', 50)->default('pdf');
+            $table->string('portada_path', 255)->nullable(); // imagen de portada
+            $table->string('file_path', 255)->nullable();    // archivo descargable
+            $table->string('external_url', 500)->nullable(); // enlace externo
+            $table->string('mensaje', 500)->nullable();      // mensaje de contacto para pubs sin liga
+            $table->smallInteger('cuenta')->default(0);      // contador de visitas legacy
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->boolean('is_published')->default(true);
             $table->timestamps();
@@ -56,8 +29,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('publicaciones_cientificas');
-        Schema::dropIfExists('publicaciones_tecnicas');
-        Schema::dropIfExists('publicaciones_ilustraciones');
+        Schema::dropIfExists('publicaciones');
     }
 };

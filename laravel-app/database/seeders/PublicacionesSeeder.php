@@ -7,186 +7,444 @@ use Illuminate\Support\Facades\DB;
 
 class PublicacionesSeeder extends Seeder
 {
-    private function parseObjectList(string $raw): array
-    {
-        $items = [];
-
-        if (!preg_match_all('/\{([^{}]*)\}/s', $raw, $objectMatches)) {
-            return $items;
-        }
-
-        foreach ($objectMatches[1] as $objectBody) {
-            $item = [];
-            if (preg_match_all('/([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*("(?:\\\\.|[^"])*"|\d+|true|false|null)/s', $objectBody, $kvMatches, PREG_SET_ORDER)) {
-                foreach ($kvMatches as $kv) {
-                    $key = $kv[1];
-                    $value = $kv[2];
-
-                    if ($value !== '' && $value[0] === '"') {
-                        $value = substr($value, 1, -1);
-                        $value = stripcslashes($value);
-                    } elseif ($value === 'true' || $value === 'false') {
-                        $value = $value === 'true';
-                    } elseif ($value === 'null') {
-                        $value = null;
-                    } else {
-                        $value = (int) $value;
-                    }
-
-                    $item[$key] = $value;
-                }
-            }
-
-            if (!empty($item)) {
-                $items[] = $item;
-            }
-        }
-
-        return $items;
-    }
-
-    private function loadCatalogo(string $path, string $constName): array
-    {
-        $contents = @file_get_contents($path);
-        if ($contents === false) {
-            return [];
-        }
-
-        $pattern = '/const\s+' . preg_quote($constName, '/') . '\s*=\s*\[(.*?)\]\s*;/s';
-        if (!preg_match($pattern, $contents, $matches)) {
-            return [];
-        }
-
-        return $this->parseObjectList($matches[1]);
-    }
-
     /**
-     * Run the database seeds.
-     *
-     * @return void
+     * Limpia entidades HTML y corrige la doble codificación Latin-1→UTF-8
+     * que traen los datos del sistema legacy.
      */
-    public function run()
+    private function limpiar(?string $texto): ?string
     {
-        $catalogPath = base_path('../publicaciones-data.js');
+        if ($texto === null || $texto === '') return null;
+        // Primero corregir bytes Latin-1 mal interpretados como UTF-8
+        $texto = mb_convert_encoding($texto, 'UTF-8', 'ISO-8859-1');
+        // Luego decodificar entidades HTML (&oacute; → ó, &ntilde; → ñ, etc.)
+        return html_entity_decode($texto, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
 
-        // Datos para publicaciones tecnicas
-        $publicacionesTecnicasRaw = $this->loadCatalogo($catalogPath, 'publicacionesTecnicas');
-        if (empty($publicacionesTecnicasRaw)) {
-            $publicacionesTecnicasRaw = [
-            [
-                'titulo' => 'La siembra en surcos y corrugaciones con pileteo',
-                'year' => 2004,
-                'tipo' => 'pdf',
-                'portada' => 'imagenes/portadita_siembra_en_surcos.jpg',
-                'url' => 'http://zacatecas.inifap.gob.mx/modulo/mostrarPub.php?id=3&t=1',
-            ],
-            [
-                'titulo' => 'Estadísticas Climatológicas Básicas del Estado de Zacatecas. (Período 1961-2003)',
-                'year' => 2004,
-                'tipo' => 'pdf',
-                'portada' => 'imagenes/Portadita_2.jpg',
-                'url' => 'http://zacatecas.inifap.gob.mx/modulo/mostrarPub.php?id=4&t=1',
-            ],
-            // ...otros datos omitidos para brevedad...
-            ];
-        }
-
+    public function run(): void
+    {
         $now = now();
-        $publicacionesTecnicas = array_map(function (array $p) use ($now) {
-            $url = $p['url'] ?? null;
 
+        // ─────────────────────────────────────────────────────────
+        // PUBLICACIONES CIENTÍFICAS (pub_cientificas legacy)
+        // ─────────────────────────────────────────────────────────
+        $cientificas = [
+            [1,'Victoria Un clon criollo de durazno (Prunus persica L.) de hueso pegado para Zacatecas.','Victoria, A native clingstone peah (Prunus persica L.) clone for Zacatecas.',1999,'Victoria.pdf',null,null,407],
+            [2,'Control de malezas y respuesta del frijol al cultivo, azadoneo rotatorio y herbicidas en la hilera de siembra.','Weed Control and Dry Bean Response to In-Row Cultivation, Rotary Hoeing and Herbicides.',2001,'Weed_Control.pdf',null,null,393],
+            [3,'Caracterizaci&oacute;n hidrol&oacute;gica en un agostadero comunal excluido al pastoreo en Zacatecas, M&eacute;xico I. P&eacute;rdidas de suelo.','Hydrological characterization of a communal rangeland excluded from cattle grazing al Zacatecas, Mexico I. Soil losses.',2002,'caracterizacion_hidrologica_1.pdf',null,null,383],
+            [4,'Caracterizaci&oacute;n hidrol&oacute;gica en un agostadero comunal excluido al pastoreo en Zacatecas, M&eacute;xico II. Escurrimiento superficial.','Hydrological characterization of a communal rangeland excluded from cattle grazing al Zacatecas, Mexico II. Surface runoff.',2002,'caracterizacion_hidrologica_2.pdf',null,null,385],
+            [5,'Per&iacute;odo cr&iacute;tico del control de malezas en chile trasplantado.','Critical Period of Weed Control in Transplanted Chilli Pepper.',2002,'Critical_Period.pdf',null,null,383],
+            [6,'Efecto del cultivo en la hilera de siembra, herbicidas y cubierta del frijol en la emergencia de pl&aacute;ntulas de maleza.','Effect of in-row cultivation, herbicide and dry bean canopy on weed seedling emergence.',2002,'Effect_of_in_row_cultivation.pdf',null,null,382],
+            [7,'Relaciones h&iacute;dricas, rendimiento de tomate para proceso bajo riego parcial de la ra&iacute;z.','Water relations, rrowth, and yield of processing tomatoes under partial rootzone drying.',2003,'water_relation_tomatoes.pdf',null,null,384],
+            [8,'Labranza reducida y convencional en la distribuci&oacute;n espacial de la maleza y rendimiento de frijol.','Effect of Reduced and Conventional Tillage on the Spatial Distribution of Weed and Dry Bean Yield.',2003,'Labranza_reducida.pdf',null,null,388],
+            [9,'El riego deficitario y riego parcial de la raíz mantienen el peso seco del fruto y mejora la calidad del fruto del tomate para proceso Petropride (Lycopersicon esculentum, Mill.).','Deficit irrigation and partial rootzone drying maintain fruit dry mass and enhance fruit quality in Petopride processing tomato (Lycopersicon esculentum, Mill.).',2003,'deficit_irrigation.pdf',null,null,381],
+            [10,'El riego parcial de la raíz es una opción factible para regar el tomate para proceso.','Partial rootzone drying is a feasible option for irrigating processing tomatoes.',2004,'partial_rootzone.pdf',null,null,386],
+            [11,'Contenidos minerales de uva, aceituna, manzano y tomate bajo riego reducido.','Mineral contents of grape, olive, apple, and tomato under reduced irrigation.',2004,'mineral_contents.pdf',null,null,382],
+            [12,'Identificaci&oacute;n de &aacute;reas susceptibles de reconversi&oacute;n de suelos agr&iacute;colas hacia agostadero y su conservaci&oacute;n en el ejido P&aacute;nuco, Zacatecas, México.','Identification of areas for reconversion from agricultural to rangeland use and soil conservation in the Panuco ejido, Zacatecas, México.',2004,'identificacion_de_areas.pdf',null,null,384],
+            [13,'Distribuciones espaciales de malezas y rendimiento de ma&iacute;z en labranza reducida y convencional.','Weed and corn yield spatial distributions in reduced and conventional tillage.',2004,'Distribuciones.pdf',null,null,387],
+            [15,'Relaciones hídricas, crecimiento, rendimiento y calidad de fruta de chile ancho bajo riego deficitario y riego parcial de la raíz.','Water relations, growth, yield, and fruit quality of hot pepper under deficit irrigation and partial rootzone drying.',2005,'water_relation_fruit.pdf',null,null,386],
+            [16,'Respuesta del tomate para proceso Petropride al riego parcial de la raíz en diferentes estadíos fenológicos.','Responses of Petopride processing tomato to partial rootzone drying at different phenological stages.',2005,'responses_of_petopride.pdf',null,null,389],
+            [17,'Cambios estacionales de nutrimentos en hojas y ca&iacute;da de fruta en durazno Criollo de Zacatecas, M&eacute;xico.','Seasonal changes of nutriments in leaves and fruit drop of Criollo Peach in Zacatecas, México.',2005,'cambios_estacionales.pdf',null,null,383],
+            [18,'Riego parcial de ra&iacute;z en manzano \'Golden Delicious\' en un ambiente semi-&aacute;rido.','Partial Rootzone Irrigation Of Golden Delicious Apple Trees In A Semi-Arid Environment.',2006,'RiegoParcialdeRaiz.pdf',null,null,385],
+            [19,'Rentabilidad del chile seco en Zacatecas, M&eacute;xico.','Profitability Of Dry Chili At Zacatecas, México.',2006,'Art_FITOTECNIA_aceptado_2006.pdf',null,null,400],
+            [20,'Influencia del sistema de pastoreo con peque&ntilde;os rumiantes en agostadero del semi&aacute;rido Zacatecaco. I Vegetaci&oacute;n nativa.','Influence of small ruminant grazing systems in a semiarid range in the State of Zacatecas Mexico. I Native vegetation',2006,'sistema_de_pastoreo.pdf',null,null,384],
+            [21,'Emisiones de Dioxido de Carbono desde Horizontes Petrocalcicos Exhumados.','Carbon Dioxide Emissions from Exhumed Petrocalcic Horizons.',2006,'Serna_Monger_Herrick_Murray.pdf',null,null,386],
+            [22,'Rendimiento y calidad de fruta en tomate para proceso bajo riego parcial de la raíz.','Yield and fruit quality in processing tomato under partial rootzone drying.',2006,'252_258JZegbe.pdf',null,null,389],
+            [23,'Representaci&oacute;n del movimiento de bromuro con la t&eacute;cnica de visualizaci&oacute;n volum&eacute;trica.',null,2006,'movimiento.pdf',null,null,386],
+            [24,'Influencia del sistema de pastoreo con peque&ntilde;os rumiantes en un agostadero del semi&aacute;rido Zacatecano: II Cambios en el suelo.','Influence of small ruminant grazing systems in a semiarid range in the State of Zacatecas (Mexico): II Soil changes.',2007,'cambios_en_el_suelo.pdf',null,null,383],
+            [25,'Respuesta del tomate al riego parial de la ra&iacute;z y d&eacute;ficit h&iacute;drico.','Response Of Tomato To Partial Rootzone Drying And Deficit Irrigation.',2007,'PRD_RFMex_07.pdf',null,null,384],
+            [26,'Respuesta del tomate para proceso al riego parcial de la ra&iacute;z.','Response of Processing Tomato to Partial Rootzone Irrigation.',2007,'PRD_Terra_2007.pdf',null,null,384],
+            [27,'Respuesta del manzano "PACIFIC ROSE" al riego parcial de ra&iacute;z.','Response Of PACIFIC ROSE Apple To Partial Root Irrigation.',2007,'PRD_AppleRev_2007.pdf',null,null,385],
+            [28,'Poda de ramas mixtas y raleo de frutos: pr&aacute;cticas culturales independientes en durazno Victoria.','Fruiting Shoots Pruning And Fruit Thinning: Two Independent Cultural Practices In Victoria Peach.',2007,'DespunteDurazno_2007.pdf',null,null,385],
+            [29,'Riego reducido mantiene la fotosíntesis, crecimiento, rendimiento y calidad de fruta en el manzano Pacific Rose.','Reduced irrigation maintains photosynthesis, growth, yield, and fruit quality in Pacific Rose apple.',2007,'PRDApple.pdf',null,null,390],
+            [30,'Estado hídrico del árbol, asimilación de CO2, rendimiento y calidad de la manzana Pacific Rose bajo riego parcial de la raíz.','Plant water status, CO2 assimilation, yield, and fruit quality of Pacific Rose apple under partial rootzone drying.',2008,'AdvHortSci_22_1_2008.pdf',null,null,386],
+            [31,'Retraso de la cosecha en nopal tunero cv. cristalina.','Harvest Delaying In Cactus Pear Cv. Cristalina.',2008,'Tuna_JZegbe.pdf',null,null,381],
+            [32,'Comportamiento postcosecha de la manzana Pacific Rose cultivada bajo riego parcial de la raíz.','Postharvest performance of pacific rose apple grown under partial rootzone drying.',2008,'HortSCi.pdf',null,null,382],
+            [33,'¿Remover las yemas reproductivas afecha la época de cosecha del nopal tunero?.','Does reproductive bud removal affect harvest timing of cactus pear?.',2008,'Zegbe_Mena_RevFitoTecMex_2008.pdf',null,null,383],
+            [34,'Sistemas de manejo para la producción sustentable de chile seco cv. MIRASOL.','Management systems for sustainable production of dry pepper cv. MIRASOL.',2008,'Serna_RevFitotMex_2008.pdf',null,null,390],
+            [35,'Empleo de marcadores moleculares en la identificación de razas caprinas del estado de Zacatecas, México.','Use of molecular markers to differentiate goat breeds from Zacatecas, México.',2008,'celtiberica.pdf',null,null,388],
+            [36,'Productividad del chamizo Atriplex canescens con fines de reconversión: dos casos de estudio.','An assessment of Fourwing saltbush (Atriplex canescens) productivity for crop conversion potential in two study cases.',2009,'chamizo_reconversion.pdf',null,null,403],
+            [37,'Estimación de la producción de forraje con imágenes de satélite en los pastizales de Zacatecas.','Use of satellite images to assess forage production in the rangelands of Zacatecas.',2009,'Estimacion_Via_Satelite.pdf',null,null,399],
+            [38,'El riego parcial de la raíz incrementa la productividad del agua en manzano en un ambiente SEMI-ÁRIDO.','Partial rootzone drying improves water productivity of apples in a semi-arid environment.',2009,'RPRmanzano.pdf',null,null,384],
+            [39,'Flower bud thinning in \'Rojo Liso\' cactus pear.','Flower bud thinning in Rojo Liso cactus pear.',2009,'JHSB.pdf',null,null,383],
+            [40,'Dos alternativas de raleo de yemas reproductivas para nopal tunero.','Two reproductive bud thinning alternatives for cactus pear.',2010,'altNopalTunero.pdf',null,null,381],
+            [41,'Cambios postcosecha en la pérdida de peso y calidad de la tuna de nopal tunero sometido a raleo de yemas reproductivas.','Postharvest changes in weight loss and quality of cactus pear fruit undergoing reproductive bud thinning.',2010,'Postharvest.pdf',null,null,383],
+            [42,'Impactos de pequeños rumiantes sobre los pastizales del altiplano semiarido de México y la reconversión por sistemas de pastoreo.',null,2010,null,'Si Usted está interesado (a) por esta publicación, por favor solicítela por correo electrónico a la siguiente dirección: fechava@zacatecas.inifap.gob.mx','Small ruminant impacts on rangelands of semiarid highlands of Mexico and the reconverting by grazing systems.',364],
+            [43,'Influence of nutritional and socio-sexual cues upon reproductive efficiency of goats exposed to the male effect under extensive conditions.',null,2010,null,'Si Usted está interesado (a) por esta publicación, por favor solicítela por correo electrónico a la siguiente dirección: fechava@zacatecas.inifap.gob.mx',null,364],
+            [44,'Relaciones hídricas, intercambio gaseoso y rendimiento de Tomate para proceso bajo riego reducido.','Water relations, gas exchange, and yield of processing tomato under reduced irrigation.',2010,'Cien_Agri_Zegbe.pdf',null,null,385],
+            [45,'Modelo regional para predecir el rendimiento de frijol de temporal en México.','Large-area dry bean yield prediction modeling in México.',2010,'modeloRegPred.pdf',null,null,385],
+            [46,'El riego parcial de la raíz mantiene la calidad de la fruta de manzano Golden Delicious a la cosecha y postcosecha.','Partial rootzone drying maintains fruit quality of Golden Delicious apples at harvest and postharvest.',2011,'riegoManzanoGolden.pdf',null,null,383],
+            [47,'Estado nutricional de hojas de manzano no afectadas por tres años de riego usando riego parcial de la raíz.','Nutrient status of apple leaves not affected by three years of irrigation using partial root zone drying.',2011,'estadoNutricionalManzano.pdf',null,null,402],
+            [48,'Rendimiento y calidad de chile seco Mirasol cultivado bajo riego parcial de la raíz.','Yield and fruit quality of Mirasol dry chili cropped under partial rootzone drying.',2011,'HortOnce.pdf',null,null,393],
+            [49,'¿Es la materia seca un índice seguro para la fruta del kiwi Hayward?','Is dry matter a reliable quality index for hayward kiwifruit?.',2011,'Crisostoetal.pdf',null,null,382],
+            [50,'Efecto de aplicación de glomus intraradices en el desarrollo Vegetativo y radicular de plántulas de curcubita pepo l.','Effect of application of glomus intraradices on the vegetative and root growth of cucurbita pepo l. plantlets.',2011,'AplicacionDeglomus.pdf',null,null,400],
+            [51,'CEZAC 06 : nueva variedad de ajo tipo jaspeado para la región norte centro de México.','Cezac 06: new jaspeado garlic cultivar for the northem-central region of México.',2011,'ARTICULOCEZAC.pdf',null,null,388],
+            [52,'Hacia un enfoque de investigación participativa para mejorar los Sistemas de Producción de Caprinos en regiones semiáridas de México: Una caracterización socioeconómica y ecológica.','Towards a participatory research approach to improve goats production systems in semi arid México: Socioeconomic and ecological.',2011,'echavarriaet.pdf',null,null,392],
+            [53,'Efecto del cambio climático en la acumulación de frío en la región manzanera de chihuahua.','Effect of climate change in the cold accumulation in the apple producing region of Chihuahua.',2011,'efectoCCChihu.pdf',null,null,384],
+            [54,'Riego parcial de la raíz para el ahorro de agua mientras se cultiva el manzano en una región semi-árida.','Partial rootzone drying to save water while growing apples in a semi-arid region.',2012,'riegoParcialRaiz.pdf',null,null,395],
+            [55,'Nuevo índice de calidad basado en la materia seca y acidez propuesto para la fruta del kiwi Hayward.','New quality index based on dry matter and acidity proposed for Hayward kiwifruit.',2012,'CalifAgricJZegbe.pdf',null,null,385],
+            [56,'Rendimiento, calidad de fruto y eficiencia en el uso del agua del chile "mirasol" bajo riego deficitario.','Yield, fruit quality and water use efficiency of chili "mirasol" under irrigation deficit.',2012,'rendimiento9a.pdf',null,null,383],
+            [58,'Exposicion al fotoperiodo largo en la induccion de cabras lactantes.',null,2013,null,'Si Usted está interesado (a) por esta publicación, por favor solicítela por correo electrónico a la siguiente dirección: mflores@zacatecas.inifap.gob.mx','Long-day photoperiod exposure in lactating goats to induce.',365],
+            [59,'Actividad ovulatoria post parto.',null,2013,null,'Si Usted está interesado (a) por esta publicación, por favor solicítela por correo electrónico a la siguiente dirección: mflores@zacatecas.inifap.gob.mx','Post-partum ovulatory activity.',364],
+            [60,'Cambio climático y sus implicaciones en cinco zonas productoras de maíz en México.','Climate change and its implications in five producing areas of maize in México.',2011,'cambioClima.pdf',null,null,385],
+            [61,'Perspectivas del sistema de producción de manzano en chihuahua, ante el cambio climático.','Perspectives on the apple production system in Chihuahua facing climate change.',2011,'cambioClimManz.pdf',null,null,387],
+            [62,'Razas mexicanas de maíz como fuente de germoplasma para la adaptación al cambio climático.','Mexican maize races as a germplasm source for adaptation to climate change.',2011,'germoplazma.pdf',null,null,383],
+            [63,'Presencia de Circulifer tenellus Baker y Beet mild curly top virus en maleza durante el invierno en el centro norte de México','Circulifer tenellus Baker and Beet mild curly top virus presence in weeds during the winter in north-central Mexico.',2012,'presmalin.pdf',null,null,384],
+            [64,'Respuesta del chile mirasol a la labranza reducida, enmiendas al suelo y acolchado plástico.','Response of Mirasol chili pepper to reduced tillage, soil amendments and plastic mulch.',2013,'labRedChileMari.pdf',null,null,384],
+            [65,'Propuesta para evaluar el proceso de adopción de las innovaciones tecnológicas.','Proposal to evaluate the process of adoption of technological innovations.',2013,'proposalI.pdf',null,null,392],
+            [66,'Estructura económica competitiva del sector agropecuario de Zacatecas: Un análisis por agrocadenas.','Competitive economic structure of the agricultural and livestock sector of Zacatecas: An analysis by agro-chains.',2013,'estecoagZac.pdf',null,null,382],
+            [67,'Efecto del manejo reducido y convencional en chile mirasol en la región norte centro de México.','Effect of reduced and conventional management on dry chili pepper at the North Central Region of México.',2013,'efectochilemirasol.pdf',null,null,381],
+            [68,'Hortalizas y virosis en zacatecas: un patosistema complejo.','Vegetables and viruses in Zacatecas: A complex pathosystem.',2013,'hortavir13.pdf',null,null,384],
+            [69,'Detección de Infecciones Mixtas Causadas por Begomovirus y Curtovirus en Plantas de Chile para Secado en San Luis Potosí, México.','Detection of Mixed Infections Caused by Begomovirus and Curtovirus in Chili pepper for drying plants in San Luis Potosi, Mexico.',2012,'detInfeMixt.pdf',null,null,386],
+            [70,'Efecto de la Preparación del Suelo en la Dispersión de Esclerocios de Sclerotium cepivorum Berk.','Effect of Soil Preparation in Dispersion of Sclerotia of Sclerotium cepivorum Berk.',2012,'efctPrepSuelo.pdf',null,null,386],
+            [71,'La nutrición mineral mejora el rendimiento y afecta la calidad de la fruta del nopal tunero \'Cristalina\'','Mineral nutrition enhances yield and affects fruit quality of \'Cristalina\' cactus pear',2014,'mineralNutricion.pdf',null,null,382],
+            [72,'Análisis económico de la aplicación de fertilizantes minerales en el rendimiento del nopal tunero.','Economic analysis of the application of mineral fertilizers on the yield of prickly pear.',2014,'anEcoNopalT.pdf',null,null,389],
+            [73,'Vectores potenciales de virus en frutales de hueso en Aguascalientes, Zacatecas y norte de Jalisco, México.','Potential virus vectors in stone fruit trees in Aguascalientes, Zacatecas and northern Jalisco, Mexico.',2014,'vectoresPot.pdf',null,null,386],
+            [74,'Una nueva cepa del Virus del Chino del Tomate aislado de plantas de soya (Glycine max L.) en México','A new strain of Chino del Tomate Virus isolated from soybean plants (Glycine max L.) in Mexico',2014,'cepaVirusChino.pdf',null,null,382],
+            [75,'Floración y fructificación de chile mirasol (Capsicum annuum L.) con labranza reducida, labranza convencional o incorporación de avena al suelo.','Flowering and fruiting of Mirasol pepper (Capsicum annuum L.) with minimum tillage, conventional tillage or addition of oats to the soil',2014,'floFruCap.pdf',null,null,385],
+            [76,'Producción y calidad de forraje de variedades de avena en condiciones de temporal en Zacatecas, México','Yield and forage quality of oats varieties under rainfed conditions in Zacatecas, Mexico',2014,'prodAvenaTZac.pdf',null,null,388],
+            [78,'El riego en nopal influye en el almacenamiento y acondicionamiento de la tuna.','Irrigation in nopal influences the storage and packaging of tuna',2014,'JZegbe2014RevMex.pdf',null,null,387],
+            [79,'Vectores potenciales de virus en frutales de hueso en Aguascalientes, Zacatecas y norte de Jalisco, México.','Potential virus vectors in stone fruit trees in Aguascalientes, Zacatecas and northern Jalisco, Mexico.',2014,'vectoresVirusFrutalesAguascalientes.pdf',null,null,383],
+            [80,'Inducción de lluvia mediante sembrado de nubes con yoduro de plata en la región norte-centro de México en la temporada de lluvia 2012.','Stimulation of rain using silver iodide cloud-seeding over northern central Mexico during the 2012 wet season.',2014,'induccionLluvia.pdf',null,null,388],
+            [81,'Índices de extremos térmicos en las Llanuras Costeras del Golfo Sur en México.','Indices of temperature extremes in the South Gulf Coastal Plains in Mexico.',2014,'indicesExtremosGolfoSurMexico.pdf',null,null,382],
+            [82,'Impacto potencial del cambio climático en la región productora de durazno en Zacatecas, México.','Potential impact of climate change on the peach producing region in Zacatecas, Mexico.',2014,'impactoPotencialDurazno.pdf',null,null,385],
+            [83,'Efecto de la condición ENSO en la frecuencia e intensidad de los eventos de lluvia en la península de Baja California (1998-2012).','Effect of the ENSO condition in the frequency and intensity of rainfall events in the Baja California peninsula (1998-2012).',2014,'condicionENSO.pdf',null,null,388],
+            [84,'Cambio climático en México y distribución potencial del grupo racial de maíz cónico.','Climate Change in Mexico and potential distribution of racial groups conical maize.',2014,'cambioClimaticoMaizConico.pdf',null,null,397],
+            [85,'Mucílago de nopal como película de recubrimiento para mejorar la vida de anaquel de la guayaba para consumo en fresco (Psidium guajava L.)','Cactus mucilage as a coating film to enhance shelf life of unprocessed guavas (Psidium guajava L.)',2015,'cactusMucilage Unprocessed.pdf',null,null,381],
+            [86,'El riego mejora el comportamiento postcosecha de la tuna Cristalina','Irrigation enhances postharvest performance of Cristalina cactus pear fruit',2015,'IrrigationCristalinCactus.pdf',null,null,385],
+            [87,'Características forrajeras de variedades de triticale en condiciones de sequía.','Forage characteristics of triticale varieties under drought.',2015,'Triticale_publicacion.pdf',null,null,386],
+            [88,'Avances de la evaluación experimental de Beauveria bassiana como control biológico de la chicharrita (Circulifer tenellus) presente en Zacatecas.','Advances in experimental evaluation of Beauveria bassiana as a biological control planthopper (Circulifer tenellus) present in Zacatecas',2014,'bBassianaCBio.pdf',null,null,388],
+            [89,'Comparación estomática en hojas de chile para secado (Capsicum annuum L.) asintomáticas y con síntomas de amarillamiento.','Comparison stomatal sheets for drying chili (Capsicum annuum L.), asymptomatic and yellowing symptoms.',2014,'cEstomaticaChile.pdf',null,null,386],
+            [90,'Crecimiento y rendimiento de cinco nuevos clones de ajo (Allium sativum L.) en campos de productores en Zacatecas.','Growth and yield of five new clones of garlic (Allium sativum L.) in farmer\'s fields in Zacatecas.',2014,'clonesAjo.pdf',null,null,398],
+            [91,'Evaluación de marcadores moleculares para la medición de la diversidad genética de Capsicum annum L. del banco de germoplasma del Inifap-Zacatecas.','Evaluation of molecular markers for measuring the genetic diversity of Capsicum annum L. genebank of Inifap-Zacatecas.',2014,'marcMolecularesBancoZac.pdf',null,null,388],
+            [92,'Presencia de fitoplasmas en maleza de Aguascalientes y Zacatecas.','Phytoplasma presence in weed of Aguascalientes and Zacatecas',2014,'fitoMalezaAguZac.pdf',null,null,388],
+            [93,'Orientación de semilla, rendimiento y calidad de ajo (Allium Sativum l.) en dos variedades para Zacatecas.','Orientation of seed, yield and quality of garlic (Allium sativum L.) in two varieties for Zacatecas.',2014,'orRenCalAjoZac.pdf',null,null,416],
+            [94,'Brote de Candidatus Liberibacter Solanacearum en chile para secado en Durango, México.','Outbreak of Candidatus Liberibacter Solanacearum in dried chile pepper in Durango, Mexico.',2014,'broteChileDurango.pdf',null,null,391],
+            [95,'Presencia de fitoplasmasen el Cicadélido Circullifer Tenellus en el estado de Zacatecas, México.','Presence of phytoplasma in the Cicadélido Circullifer Tenellus in the state of Zacatecas, México.',2014,'fitoCicadelidoZac.pdf',null,null,382],
+            [96,'Detección de fitoplasmas en poblaciones de Dalbulus, Empoasca, Graminella y Aceratagallia presentes en el estado de Zacatecas, México.','Detection of phytoplasma in populations of Dalbulus, Empoasca, Graminella y Aceratagallia from the state of Zacatecas, Mexico.',2014,'detFitoDEGAZac.pdf',null,null,386],
+            [97,'Razas actuales de maíz de secano en el estado de Zacatecas, México.','Current rainfed maize raices in the state of Zacatecas, Mexico.',2014,'rActualesMaizSecano.pdf',null,null,383],
+            [98,'Rendimiento y calidad de fruto de cuatro líneas de chile ancho en Zacatecas, México.','Yield and fruit quality of four ancho pepper lines in Zacatecas, México.',2014,'rendCalChileAnchoZac.pdf',null,null,385],
+            [99,'Síntomas asociados con la infección por curtovirus y fitoplasmas en chile para secado.','Symptoms associated with infection by curtoviruses and phytoplasmas in chile drying.',2014,'sinInfCutFitoChile.pdf',null,null,391],
+            [100,'Trampeo de adultos de Circulifer spp en Zacatecas.','Trapping adult Circulifer spp in Zacatecas.',2014,'trampeoCirculifersppZac.pdf',null,null,389],
+            [101,'Transmisión de fitoplasmas por el vector Circulifer Tenellus en diferentes hospederos vegetales.','Phytoplasma transmission by the vector Circulifer tenellus in different plant hosts.',2014,'transFitoCirculifersppVegetales.pdf',null,null,381],
+            [102,'Utilización experimental de Beauveria Bassiana como control biológico de Circulifer Tenellus: vector de fitoplasmas en el cultivo de chile.','Experimental use of Beauveria Bassiana as biological control of Circulifer tenellus: vector of phytoplasmas in the pepper crop.',2014,'beauveriaCotrolCirculifer.pdf',null,null,400],
+            [103,'Validación de una estrategia metodológica para la evaluación cualitativa de un pastizal mediano abierto del estado de Zacatecas.','Validation of a methodological strategy for the qualitative evaluation of semiarid rangelands in Zacatecas.',2015,'valMetPazAbiertoZac.pdf',null,null,386],
+            [104,'Tipificación de un sistema integral de lechería familiar en Zacatecas, México.','Typification of integrated family dairy systems in Zacatecas, Mexico.',2015,'tipificacion_2015.pdf',null,null,384],
+            [105,'Aplicaciones de NPK al suelo afecta la calidad y la vida de anaquel de la tuna Cristalina','Soil applications of NPK affect fruit quality and shelf-life of Cristalina cactus pear',2015,'ZegbeFruits.pdf','Para mayor información, favor de comunicarse a los siguientes correos: zegbe.jorge@inifap.gob.mx o jzegbe@zacatecas.inifap.gob.mx',null,386],
+            [106,'Efecto del cambio climático en el potencial productivo del frijol en México.','Effect of climate change on the productive potential of beans in Mexico.',2016,'camClimPP.pdf',null,null,391],
+            [107,'Índices de cambio climático en el estado de Chiapas, México, en el periodo 1960-2009.','Climate change indices in the state of Chiapas, Mexico, for the period 1960-2009.',2016,'indiceCClimChiap.pdf',null,null,385],
+            [108,'Regionalización del cambio climático en México.','Regionalization of climate change in Mexico.',2016,'regionCClimMex.pdf',null,null,382],
+            [109,'Infestacion natural de Bactericera cockerelli SULC, en colectas de chile para secado ancho y Mirasol en Zacatecas, México.','Natural infestation of Bactericera cockerelli Sulc in dry chile pepper accessions from the Ancho and Mirasol types in Zacatecas, Mexico.',2015,'infestSULCZac.pdf',null,null,388],
+            [110,'Presencia de virus de ARN en plantas de chile para secado con sintomas especificos.','Presence of RNA viruses in dried chile pepper with specific symptoms.',2015,'ARNChileSin.pdf',null,null,388],
+            [111,'Presencia y evaluacion de daño causado por Meloidogyne spp. En plantas de Chile para secado y maleza en Zacatecas, Mexico.','Presence and damage evaluation caused by Meloidogyne spp. In dry chile pepper plants in Zacatecas, Mexico.',2015,'danoMeloidogyne.pdf',null,null,382],
+            [112,'Reaccion de materiales comerciales de chile a enfermedades en parcelas demostrativas en Durango y Michoacan, Mexico.','Reaction of commercial pepper materials to diseases in demonstrative fields in Durango and Michoacan, Mexico.',2015,'enfParcelasDemoDgoMicho.pdf',null,null,388],
+            [113,'Candidatus Phytoplasma trifolii (16SrVI) en chile mirasol (Capsicum annuun L.) Cultivado en Zacatecas, México.','Candidatus Phytoplasma trifolii (16SrVI) in mirasol chili pepper (Capsicum annuun L.) Cultivated in Zacatecas, México.',2015,'CanPhytoplasmaCHMirasol.pdf',null,null,383],
+            [114,'Influencia de la poda sobre el crecimiento del fruto de durazno bajo condiciones de riego y temporal.','Influence of pruning on peach fruit growth under irrigation and rainfed conditions.',1988,'influPodaCDurazno.pdf',null,null,383],
+            [115,'Diferencias entre clones de durazno en la respuesta estomática en condiciones de invernadero.','Differences among seedling peach clones in stomatal response under greenhouse conditions.',1993,'difClonDurazno.pdf',null,null,386],
+            [116,'Evaluación de cianamida hidrogenada como retardante de la brotación de yemas florales de duraznero criollo.','Evaluation of hydrogen cyanamide as delayer of floral bud break of criollo peaches.',1993,'hidroYemasFlorDuraznoC.pdf',null,null,386],
+            [117,'Retraso de la floración de durazno Flordaking con aplicaciones de etofón en otoño.','Blooming delaying of Flordaking peaches with ethephon applications in autumn',1994,'retFloracionDuraznoOt.pdf',null,null,383],
+            [118,'Diferencias en la época de la floración entre clones de Durazno.','Blooming time differences among seedling peach clones.',1994,'difFloracionClonDurazno.pdf',null,null,383],
+            [119,'Influencia de la época de plantación, fertilización y poda de trasplante sobre el desarrollo inicial del durazno criollo bajo temporal.','Influence of plating season, fertilization and pruning at planting time on the initial peach tree growth under rainfed conditions.',1995,'infPlantacionDuraznoCriolloBajoTemp.pdf',null,null,390],
+            [120,'Fenología del duraznero criollo en Jerez, Zacatecas, México: Un modelo y código decimal fenológico.','Phenology of native peach in Jerez, Zacatecas, Mexico.',1995,'DuraznoCriolloJerez.pdf',null,null,384],
+            [121,'Respuesta del rendimiento del duraznero Prunus persica L. Batsch criollo mexicano a la maleza y fertilización con NPK.','Yield and economical response of mexican native peach Prunus pérsica L. Batsch to weed and NPK fertilization.',1996,'rendDurazneroMalezaNPK.pdf',null,null,384],
+            [122,'Potencial de rendimiento y asimilación de CO2 en árboles jóvenes de durazno y nectarino.','Yield potential and net CO2 asimilation in nonfruting peach and nectarine tres.',1998,'potCO2DuraznoJoven.pdf',null,null,382],
+            [123,'Influencia de la poda en melocotonero cultivado bajo secano en el trópico mexicano.','Influence of pruning in clingstone peaches cultivated under rainfed conditions.',1998,'infPodaMelocotonero.pdf',null,null,386],
+            [124,'Uso de un Sistema de información geográfico GIS para identificar área apropiadas para la producción de durazno.','Use of a geographical information system GIS to describe suitable production areas for peach.',1998,'GisAreasDurazno.pdf',null,null,383],
+            [125,'Un estudio de poda en durazno criollo en bajas latitudes.','A study of pruning on seedling peaches at low latitude.',1998,'estudioPodaDuraznoLatitudBaja.pdf',null,null,382],
+            [126,'El riego parcial de la raíz adelanta la maduración de la Manzana Royal Gala.','Partial rootzone drying advances fruit maturity of Royal Gala Apple.',2016,'riegoMadManzRoyal.pdf',null,null,383],
+            [127,'Ocurrencia y deteccion molecular de spiroplasma citri en zanahorias y su insecto vector, circulifer tenellus en México.','Occurrence and molecular detection of spiroplasma citri in carrots and its insect vector, circulifer tenellus, in mexico.',2016,'occFitZana.pdf',null,null,385],
+            [128,'Primer reporte confirmado del iris yellow spot virus en almacigos de cebolla en Zacatecas, México.','First Confirmed Report of Iris yellow spot virus in Onion Nurseries in Zacatecas, Mexico.',2016,'iYellCebZac.pdf','Para mayor información, favor de comunicarse al siguiente correo: velasquez.rodolfo@inifap.gob.mx.',null,389],
+            [129,'Efecto del tratamiento térmico sobre la presencia de virus en bulbos de ajo Allium sativum L.','Effect of thermic treatment on the presence of virus in garlic Allium sativum L bulbs.',2016,'efeVirusBulbosAjo.pdf',null,null,386],
+            [130,'Primer reporte de una cepa relacionada con Candidatus Phytoplasma trifolii asociada a una nueva enfermedad en plantas de tomate en Zacatecas, México.','First report of Candidatus Phytoplasma trifolii-related strain associated with a new disease in tomato plants in Zacatecas, Mexico.',2016,'pInfoCanT.pdf',null,null,385],
+            [131,'Calidad de vida laboral de jornaleros dedicados a la producción de tomate fresco bajo invernadero.','Quality of worklife of workers dedicated to fresh tomato production under greenhouse.',2016,'RevCubanaSaludTrabajo.pdf',null,null,387],
+            [132,'Efecto de agentes de manejo alternativo sobre el desarrollo de pudrición blanca de ajo.','Effect of agents of alternative management on the garlic white rot development.',2016,'agMaPuBajo.pdf',null,null,386],
+            [133,'Detección del virus de la mancha amarilla del iris en almácigos de cebolla en Zacatecas, México.','Detection of the yellow spot virus in onion seedlings in Zacatecas, Mexico',2017,'IYSV.pdf',null,null,385],
+            [134,'Caracterización forrajera de ecotipos de zacate buffel en condiciones de temporal en Debre Zeit, Etiopia.','Forage characterization of ecotypes of buffel grass under temporary conditions in Debre Zeit, Ethiopia',2017,'buffel2017.pdf',null,null,382],
+            [135,'Géneros de Chicharritas Presentes durante el Invierno en Regiones de Aguascalientes, Coahuila, y Zacatecas, México','Presence of leafhoppers during the winter in regions of Aguascalientes, Coahuila, and Zacatecas, Mexico.',2017,'velsquezvalle2017.pdf',null,null,383],
+            [136,'Sistema para programar y calendarizar el riego de los cultivos en tiempo real.','System to program and schedule the irrigation of crops in real time.',2017,'sisProgCalRiego.pdf',null,null,392],
+            [137,'Cambios estacionales y concentración de nutrientes en cladodios del nopal tunero Cristalina en respuesta a la fertilización con NPK.','Seasonal changes and nutrient concentrations of Cristalina cactus pear cladodes in response to NPK fertilization.',2017,'camCristalina.pdf','jzegbe@zacatecas.inifap.gob.mx',null,383],
+            [138,'Sistema de producción de forrajes de temporal y pastoreo de cabras: Opción para la reconversión productiva.','Rainfed forage production system and goat grazing: an option for productive conversion.',2015,'Rainfedproduction.pdf',null,null,382],
+            [139,'Tillandsia recurvata y su valor químico como un uso alternativo para la alimentación de rumiantes en el norte de México.','Tillandsia recurvata and its chemical value as an alternative use for feeding ruminants in northern Mexico.',2017,'TillandsiaRecurvata.pdf',null,null,383],
+            [140,'Adopción tecnológica de surcos-doble hilera con pileteo en cebada maltera.','Technology adoption of double line seeding on a row with basin planting system in malting barley,',2017,'2052-10081-2-PB.pdf',null,null,392],
+            [141,'Primer reporte del fitoplasma agente de la virescencia transmitida por la chicharrita del betabel en Capsicum annuum y Circulifer tenellus en México.','First report of beet leafhopper transmitted virescence agent phytoplasma in Capsicum annuum and Circulifer tenellus in México.',2017,'pRepFito.pdf',null,null,384],
+            [142,'Calidad de forraje de canola (Brassica napus L.) en floraciones temprana y tardía bajo condiciones de temporal en Zacatecas, México.','Forage quality of canola (Brassica napus L.) at early and late bloom under rainfed conditions in Zacatecas, Mexico.',2017,'Art_Canola.pdf',null,null,385],
+            [143,'Future climate scenarios project a decrease in the risk of fall armyworm outbreaks',null,2017,null,'Para mayor información, favor de comunicarse al siguiente correo: ramirez.nadiezhda@inifap.gob.mx','Future climate scenarios project a decrease in the risk of fall armyworm outbreaks',364],
+            [145,'Global alterations in areas of suitability for maize production from climate change and using a mechanistic species distribution model (CLIMEX).','Global alterations in areas of suitability for maize production from climate change and using a mechanistic species distribution model (CLIMEX).',2017,'20307ART03 A Nadiezhda.pdf',null,null,382],
+            [146,'Eficiencia en el uso del agua de variedades de alfalfa Medicago sativa L. con sistema de riego subsuperficial.','Water use efficiency of alfalfa varieties Medicago sativa L. with subsurface irrigation system.',2017,'Alfalfa.pdf',null,null,382],
+            [147,'Barretero: nueva variedad de ajo jaspeado para Zacatecas.','Barretero: new variety of jaspeado garlic for Zacatecas.',2017,'barrteroAjoJasZac.pdf',null,null,382],
+            [148,'Preferencia del agricultor por las semillas mejoradas de maíz en Chiapas, México: Un enfoque de experimento de elección.','Farmer preference for improved corn seeds in Chiapas, Mexico: A choice experiment approach.',2017,'20310ART01A.pdf',null,null,404],
+            [149,'Patógenos comunes de semilla de ajo en Aguascalientes y Zacatecas, México.','Common pathogens of garlic seed in Aguascalientes and Zacatecas, Mexico.',2017,'patComAguZac.pdf',null,null,383],
+            [150,'Detección de patógenos asociados con psílidos y chicharritas en Capsicum annuum L. en los estados mexicanos de Durango, Zacatecas y Michoacán.','Detection of Pathogens Associated with Psyllids and Leafhoppers in Capsicum annuum L. in the Mexican States of Durango, Zacatecas and Michoacan.',2018,'Plant Disease 2018.pdf',null,null,382],
+            [151,'Un modelo empírico para predecir el rendimiento de frijol de secano con datos de varios años.','An empirical model to predict yield of rainfed dry bean with multi-year data',2007,'empiricalModel.pdf',null,null,410],
+            [152,'Climatic Adaptation and Ecological Descriptors of 42 Mexican Maize Races.','Climatic Adaptation and Ecological Descriptors of 42 Mexican Maize Races.',2008,'climAdaEcoMaize.pdf',null,null,386],
+            [153,'Mapeo del índice de aridez y su distribución poblacional en México.','Mapping of the aridity index and its population distribution in Mexico.',2011,'mapeoAridez.pdf',null,null,383],
+            [154,'Spatial Variability of the Hurst Exponent for the Daily Scale Rainfall Series in the State of Zacatecas, Mexico.','Spatial Variability of the Hurst Exponent for the Daily Scale Rainfall Series in the State of Zacatecas, Mexico.',2013,'spatialVariability.pdf',null,null,385],
+            [155,'Land Use/Cover and Productivity in the Compact Agricultural Areas of Mexico.','Land Use/Cover and Productivity in the Compact Agricultural Areas of Mexico.',2014,'compactAgricultureAreas.pdf',null,null,389],
+            [156,'Impacto del cambio climático sobre la estación de crecimiento en el estado de Jalisco, México.','Impacto del cambio climático sobre la estación de crecimiento en el estado de Jalisco, México.',2016,'iImpactoCCCrecimiento.pdf',null,null,390],
+            [157,'Áreas potenciales para plantaciones forestales ante escenarios de cambio climático en el estado de Jalisco, México.','Potential areas for forest plantation for climate change scenarios in the state of Jalisco, México.',2017,'apotencialesCCJalisco.pdf',null,null,383],
+            [158,'Cambios esperados al uso del suelo en México, según escenario de cambio climático A1F1.','Expected changes in land use in Mexico, according to the climate change scenario A1F1.',2017,'cambiosSueloCC.pdf',null,null,384],
+            [159,'El cambio climático afecta el número de horas de los rangos térmicos del chile en el norte-centro de México.','Climate change affects the number of hours in the termal ranges of chilli in North-Central Mexico.',2017,'CChorasRTChile.pdf',null,null,389],
+            [160,'Escenarios de cómo el cambio climático modificará las zonas productoras de aguacate Hass en Michoacán.','Scenarios of how climate change will modify the Hass avocado producing areas in Michoacán.',2017,'escenariosCCAguacate.pdf',null,null,387],
+            [161,'Sistema de información agroclimática para México-Centroamérica.','Agroclimatic information system for Mexico-Central America.',2018,'sisInfoMexCari.pdf',null,null,385],
+            [162,'Galletas elaboradas con harina de avena y frijol común mejoraron los marcadores séricos en ratas diabéticas.','Cookies elaborated with oat and common bean flours improved serum markers in diabetic rats.',2018,'perez-ramirez et al. 2018.pdf',null,null,384],
+            [163,'Ecogeografía del teosinte.','Ecogeography of teosinte.',2018,'Ecogeographyofteosinte.pdf',null,null,381],
+            [164,'HNMR-based metabolomic profiling for identification of metabolites in Capsicum annuum cv. mirasol infected by beet mild curly top virus (BMCTV).','HNMR-based metabolomic profiling for identification of metabolites in Capsicum annuum cv. mirasol infected by beet mild curly top virus (BMCTV).',2018,'drbecerra.pdf',null,null,384],
+            [165,'Necrosis foliar; nuevo síntoma asociado a la pudrición de la raíz de chile (Capsicum annuum) en Durango y Zacatecas, México.','Foliar necrosis; new symptom associated to root rot of pepper (Capsicum annuum) in Durango and Zacatecas, Mexico.',2017,'necrosisFoliar.pdf',null,null,387],
+            [166,'Crecimiento y producción de forraje de canola (brassica napus l.) de otoño-invierno en Zacatecas, México.','Growth and production of autumn-winter canola (brassica napus l.) forage in Zacatecas, Mexico.',2018,'cCanolaForraje.pdf',null,null,382],
+            [167,'Caracterización morfológica de un rebaño de conservación de cabras criollas en Zacatecas, México.','Morphological characterization of a native goat conservation herd in Zacatecas, México.',2018,'cMorfoCabras.pdf',null,null,383],
+            [169,'Microorganismos asociados con la pudrición de corona de alfalfa en el norte centro de México','Microorganisms associated with alfalfa crown rot in north central Mexico',2018,'CrownrotRMF.pdf',null,null,383],
+            [170,'Opciones de riego para ahorrar agua y mejorar el tamaño de las frutas de exportación y capacidad de almacenamiento de la tuna Roja Lisa','Irrigation options to save water while enhancing export-size fruit and storability of Smooth Red cactus pear',2018,'JSciFoodAgric_98_5503_2018.pdf','Para solicitar una copia del articulo envíe un correo a zegbe.jorge@inifap.gob.mx',null,389],
+            [171,'First Report of Candidatus Phytoplasma trifolii–Related Strain Associated with a New Disease on Garlic in Zacatecas, Mexico.','First Report of \'Candidatus Phytoplasma trifolii\'–Related Strain Associated with a New Disease on Garlic in Zacatecas, Mexico',2018,'Reveles-Torres-2018-First report of Candidatu.pdf',null,null,395],
+            [172,'First Report of the Leafhoppers Ceratagallia nitidula and Empoasca abrupta (Hemiptera: Cicadellidae) as Vectors of Candidatus Phytoplasma trifolii.','First Report of the Leafhoppers Ceratagallia nitidula and Empoasca abrupta (Hemiptera: Cicadellidae) as Vectors of Candidatus Phytoplasma trifolii.',2018,'Salas-Muñoz-2018-First report of the leafhoppe.pdf',null,null,399],
+            [173,'Candidatus Phytoplasma trifolii (16SrVI) infection modifies the polyphenols concentration in pepper (Capsicum annuum) plant tissues.','Candidatus Phytoplasma trifolii (16SrVI) infection modifies the polyphenols concentration in pepper (Capsicum annuum) plant tissues.',2018,'Reveles–Torres-2018-Candidatus Phytoplasma tri.pdf',null,null,388],
+            [175,'Variación estacional de la concentración foliar de nutrimentos en huertas de higuera bajo sistemas de producción intensiva.','Seasonal variation of the foliar concentration of nutrients in fig orchards under intensive production systems.',2019,'RevMexCA_10_3-525-536.pdf',null,null,385],
+            [180,'Disminución de las horas frío como efecto del cambio climático en México.',null,2019,'disHorasFrio.pdf',null,null,384],
+            [181,'Cold hours decrease as a result of climate change in Mexico','Cold hours decrease as a result of climate change in Mexico',2019,'2019-Cold hours decrease as a result of climate change in Mexico.pdf',null,null,382],
+            [182,'Efecto del calentamiento global sobre la producción de alfalfa en México',null,2020,'2020 Efecto del calentamiento global sobre la producción de alfalfa en México.pdf',null,null,390],
+            [183,'Global warming effect on alfalfa production in Mexico','Global warming effect on alfalfa production in Mexico',2020,'2020 Global warming effect on alfalfa production in Mexico.pdf',null,null,397],
+            [184,'Efecto en la erosión hídrica del suelo en pastizales y otros tipos de vegetación',null,2020,'2020 Efecto en la erosión hídrica del suelo en pastizales y otros tipos de vegetación.pdf',null,null,387],
+            [185,'Effects of rainfall pattern changes due to global warming on soil water erosion','Effects of rainfall pattern changes due to global warming on soil water erosion',2020,'2020 Effects of rainfall pattern changes due to global warming on soil water erosion.pdf',null,null,388],
+            [186,'Aumento del número de generaciones de gusano cogollero (Spodoptera frugiperda) como indicador del calentamiento global','Increase of the number of broods of Fall Armyworm (Spodoptera frugiperda) as an indicator of global warming',2020,'2020-Increase of the number of broods of Fall Armyworm.pdf',null,null,399],
+            [187,'Relationship between precipitation anomalies and multivariate ENSO index through wavelet coherence analysis',null,2020,'relationshiPre.pdf',null,null,385],
+            [188,'Influencia del cambio climático en los requerimientos térmicos del nopal tunero (Opuntia spp.) en el Centro-Norte de México','Influence of climate change on thermal requirements of cactus pear (Opuntia spp.) in Central-Northern of Mexico',2021,'CCnopalo.pdf',null,null,382],
+            [189,'¿Por qué México es un país altamente vulnerable al cambio climático?',null,2021,'MexicoVulnera.pdf',null,null,410],
+            [190,'Why is Mexico highly vulnerable to climate change','Why is Mexico highly vulnerable to climate change',2021,'WhyMexico.pdf',null,null,383],
+            [191,'Especificacion de Problemas identificados en un diagnostico agricola: Caso del abatimiento del acuifero.','Specifications of problems identified in Agricultural Fiagnosis: Case of the Lowering of the Ground water Level.',1989,'diagAcuiferos.pdf',null,null,382],
+            [192,'Evaluación Intermedia del Impacto de la Intervención Tecnológica en Unidades Agropecuarias.','Intermediate Evaluation of the Impact of Technological Intervention in Agricultural Units.',1992,'evaImUniAgro.pdf',null,null,386],
+            [193,'Comercialización de Carne de Caprinos en el Estado de Zacatecas, México.','Marketing of Goat Meat in the State of Zacatecas, Mexico.',1994,'comCapriZac.pdf',null,null,381],
+            [194,'Comportamiento productivo y valor nutricional de veza común Vicia Sativa I durante otoño-invierno en Zacatecas, México',null,2020,'20303ART01 A RSan.pdf',null,null,388],
+            [195,'Aumento del número de generaciones de gusano cogollero (Spodoptera frugiperda) como indicador del calentamiento global','Increase of the number of broods of Fall Armyworm (Spodoptera frugiperda) as an indicator of global warming',2020,'20307ART02 A Nad.pdf',null,null,384],
+            [196,'Caracterización morfologica de genotipos de pasto buffel con potencial para producción de forraje y semilla','Morphological characterization of buffelgrass with potential for forage and seed production',2020,'20309ART01 A RSan.pdf',null,null,381],
+            [198,'Cladode Pruning Affects Yield and Fruit Quality of Roja Lisa Cactus Pear Opuntia ficus-indica L. Mill.: A Preliminary Study',null,2020,'20312ART01 A Jzeg.pdf',null,null,395],
+            [199,'La siembra de maíz en doble hilera no mejora la producción y calidad del forraje de la variedad cafime en Zacatecas.','Maize planting in twin row does not affect the quality and forage production of cafime variety in Zacatecas',2020,'20312ART02 A RSan.pdf',null,null,407],
+            [200,'First report of candidatus phytoplasma trifolii- related strain associated with flower abortion and necrosis in prickly pear cactus in Zacatecas, Mexico',null,2020,'20312ART03 A LRev.pdf',null,null,382],
+            [201,'Efecto posible del cambio climático sobre la demanda de agua de cultivos importantes en Zacatecas','Potential climate change effect on water demand of important crops in Zacatecas',2022,'CCDemandaAgua.pdf',null,null,389],
+            [202,'Impacto del cambio climático sobre los requerimientos térmicos y número de generaciones de mosquita blanca (Bemicia tabaci) en el norte centro de México','Climate change effects on thermal requirements and number of broods of whitefly (Bemicia tabaci) in the north-central region of Mexico',2022,'CCMosquitBlanca.pdf',null,null,394],
+            [203,'Predicción de la producción y rendimiento de frijol, con modelos de redes neuronales artificiales y datos climáticos','Prediction of production and yield of beans, with models of artificial neural networks and climate data',2022,'PredFrijolMod.pdf',null,null,398],
+            [204,'Riego suplementario en finca de tuna Roja Lisa: Efectos antes y después de la cosecha','On-Farm Supplemental Irrigation of "Roja Lisa" Cactus Pear: Pre- and Postharvest Effects',2022,'IrrigaRojaLisa.pdf',null,null,387],
+            [206,'Flooded Extent and Depth Analysis Using Optical and SAR Remote Sensing with Machine Learning Algorithms',null,2022,'Flooded Extent and Depth Analysis.pdf',null,null,389],
+            [207,'Sensitivity of the RDI and SPEI Drought Indices to Different Models for Estimating Evapotranspiration Potential in Semiarid Regions',null,2022,'Sensitivity of the RDI and SPEI Drought Indices.pdf',null,null,387],
+            [208,'Spatiotemporal Uncertainty and Sensitivity Analysis of the SIMPLE Model Applied to Common Beans for Semi-Arid Climate of Mexico',null,2022,'Spatiotemporal Uncertainty and Sensitivity Analysis.pdf',null,null,397],
+            [209,'Efecto de fertilización foliar en el rendimiento e índice de cosecha en cinco variedades de frijol bajo riego','Foliar fertilization effect on yield and harvest index from five varieties of bean under irrigated conditions',2019,'fertFrijol.pdf',null,null,396],
+            [210,'Variedades de frijol pinto, una alternativa para mitigar los efectos del cambio climático en el noroeste de Zacatecas','Varieties of pinto beans, an alternative to mitigate the effects of climate change in northwest Zacatecas',2021,'varPinto.pdf',null,null,391],
+        ];
+
+        // ─────────────────────────────────────────────────────────
+        // PUBLICACIONES TÉCNICAS (pub_tecnicas legacy)
+        // ─────────────────────────────────────────────────────────
+        $tecnicas = [
+            // [id, titulo, portada_path, file_path, ano, cuenta]
+            [1,'Potencial Productivo de Especies Forrajeras en Zacatecas','PPForrajes.jpg','Pot_Prod_de_Especies_Forrajeras_en_Zacatecas.pdf',2001,370],
+            [2,'Potencial Productivo de Especies Agricolas en Zacatecas','PPAgricolas.jpg','Pot_Prod_de_Especies_Agricolas_en_Zacatecas.pdf',2003,331],
+            [3,'La siembra en surcos y corrugaciones con pileteo','portadita_siembra_en_surcos.jpg','LA_SIEMBRA_EN_SURCOS_Y_CORRUGACIONES_CON_PILETEO.pdf',2004,340],
+            [4,'Estadísticas Climatológicas Básicas del Estado de Zacatecas. (Período 1961-2003)','Portadita_2.jpg','climaZacatecas.pdf',2004,329],
+            [5,'Red de Monitoreo Agroclimático del Estado de Zacatecas','Portadita.jpg','Red_de_monitoreo_agroclimatico.pdf',2005,340],
+            [6,'Prácticas culturales para producir Durazno Criollo en Zacatecas','duraznoGIF.gif','PracticasDurazno2005.pdf',2005,353],
+            [7,'Modificación de la floración, maduración y época de cosecha de nopal tunero','Portadita-floracion-nopal.jpg','FrutaTunaFueraTemporada.pdf',2006,398],
+            [8,'SEQUÍA: Vulnerabilidad impacto y tecnología para afrontarla en el Norte Centro de México 2a Ed','SEQUIA_2aEd.jpg','SEQUIA_Vulnerabilidad_impacto_y_tecnologia_para_afrontarla_en_el_Norte_Centro_de_Mexico_2aEd.pdf',2006,325],
+            [9,'Degradación física de los suelos de pastizales bajo pastoreo continuo en el Altiplano de Zacatecas','Degradacion_fisica_de_los_suelos.jpg','Degradacion_fisica_de_los_suelos.pdf',2007,326],
+            [10,'Cadena de sistemas agroalimentarios de chile seco, durazno y frijol en el Estado de Zacatecas','Cadenas_Zacatecas.jpg','Cadenas_Zacatecas.pdf',2004,370],
+            [11,'Despunte de ramas mixtas y raleo de fruta en durazno "Victoria"','duraznopoda.jpg','DuraznoPoda.pdf',2007,351],
+            [12,'Tecnologia de produccion de Chile Seco','Tecnologia_de_produccion_de_chile_seco.jpg','Tecnologia_de_produccion_de_chile_seco.pdf',2006,330],
+            [13,'Potencial productivo de especies agrícolas en el distrito de desarrollo rural Río Grande, Zacatecas','Potencial_Productivo_de_Especies_Agricolas_DDR_Rio_Grande.jpg','Potencial_Productivo_de_Especies_Agricolas_DDR_Rio_Grande.pdf',2007,332],
+            [14,'Uso de estaciones meteorológicas en la agricultura','uso_de_estaciones.gif','Uso_de_estaciones_meteorologicas_en_la_agricultura.pdf',2008,429],
+            [15,'Veza común y Lathyrus sativus L: Alternativas para producir forraje en Zacatecas','Veza-lathyrus.jpg','Veza_lathyrus.pdf',2007,324],
+            [16,'Probabilidad de ocurrencia de heladas en el estado de Zacatecas','heladas.jpg','probHeladas.pdf',2008,350],
+            [17,'Riego parcial de la raíz: Una alternativa para mejorar la productividad y ahorro de agua en manzano','rprManz.jpg','RPRmanzano.pdf',2009,324],
+            [18,'Potencial Productivo de especies Agricolas en el distrito de desarrollo rural Zacatecas, Zacatecas.','potZac.jpg','PotencialProdZac.pdf',2009,330],
+            [19,'Diagnóstico de los recursos naturales para la planeación de la investigación tecnológica y el ordenamiento ecológico','diagRecursosN.jpg','diagRecN.pdf',2009,325],
+            [20,'Tecnología para cultivar ajo en zacatecas','tecnoAjo.jpg','Tecnologia para cultivar ajo en Zac.pdf',2009,334],
+            [21,'Recomendaciones para el manejo de agalla de la Corona y enfermedades virales de la vid en Zacatecas','folletoVid.jpg','recDemanejoA.pdf',2009,357],
+            [22,'El virus de la marchitez manchada del jitomate','mJito.jpg','virusMarchitezjito.pdf',2009,473],
+            [23,'Produccion de plantula de chile en invernadero','pantulaChila.jpg','prcChileInv.pdf',2010,376],
+            [24,'El Virus de la mancha amarilla del iris','virusIris.jpg','virusManchairis.pdf',2010,344],
+            [25,'Descripcion Fenotipica de material genetico de Durazno para Zacatecas','portadaD.jpg','dfDurazno.pdf',2009,328],
+            [26,'Enfermedades bóticas del ajo y chile en Aguascalientes y Zacatecas','Enfermedades de Ajo y Chile.jpg','Enfermedades de Ajo y Chile.pdf',2009,400],
+            [27,'Evaluación del impacto económico, social y ambiental del proyecto manejo integral de huertos de durazno en el estado de Zacatecas.','Huertosmodelos.jpg','Huertosmodelos.pdf',2010,327],
+            [28,'Manejo Integrado de plagas y enfermedades de frijol en Zacatecas','PlagasFrijol.jpg','PlagasFrijol.pdf',2010,527],
+            [29,'Evaluación del entorno para la innovación tecnológica en zacatecas: identificación de las cadenas productivas relevantes','Cadenasproductivas.jpg','CadenasProductivas.pdf',2010,327],
+            [30,'Enfermedades provocadas por virus en el cultivo de ajo en el norte centro de México','Enfermedadesajo.jpg','Enfermedadesajo.pdf',2010,347],
+            [31,'Factores que influye en la vida de anaquel de la TUNA (Opuntia spp.) Un estudio exploratorio','folletoTuna.jpg','portadaTuna.pdf',2010,326],
+            [32,'Produccion y ensilaje de Maiz Forrajero de riego','folletoMaiz.jpg','FolletoMaiz.pdf',2010,356],
+            [33,'Guia para la produccion de CANOLA en Zacatecas','PortadaCanola.png','FolletoCanola.pdf',2010,431],
+            [34,'Virus de frijol en la Comarca Lagunera y Zacatecas','portadaVFrijol.jpg','VFrijol.pdf',2010,362],
+            [35,'Botana a base de frijol con alto valor nutricional y nutraceutico','portadaFrijol.jpg','Frijol.pdf',2010,342],
+            [37,'Adelanto de cosecha e incremento de rendimiento en chile tipo Ancho mediante trasplante de plántulas de edad avanzada','rendimientoChile.png','rendimientoChile.pdf',2011,329],
+            [38,'CEZAC 06: Variedad de ajo jaspeado para la región norte centro de México','cezac06ajo.png','cezac06ajo.pdf',2011,353],
+            [39,'Situación actual y agenda de trabajo para la innovación tecnológica del sistema producto vid en Zacatecas','vidActual.png','vidActual.pdf',2010,331],
+            [40,'Producción de panqué y barritas, alimentos de la panificación preparados con harina compuesta de frijol, trigo y avena','panqueYBarritas.jpg','panqueYBarritas.pdf',2011,337],
+            [41,'Manual elaboración de productos agroindustriales de frijol','manualFrigol.jpg','manualFrigol.pdf',2011,327],
+            [42,'Aplicación de envolturas comestibles a base de Mucílago de Nopal para extender la vida de anaquel de frutas perecederas','mdeNopal.jpg','mdeNopal.pdf',2012,336],
+            [43,'Proceso de la Elaboración de Dulce de Tuna','procElaDTuna.jpg','procElaDTuna.pdf',2010,329],
+            [44,'La Jatropha (Jatropha curcas L.) en Zacatecas','Jatropha.png','Jatropha.pdf',2010,344],
+            [45,'Adopción de la tecnología "siembra en surcos doble hilera y pileteo" en cebada maltera en el estado de Zacatecas. Un análisis del proceso y los impactos.','AdoSurcoDH.png','AdoSurcoDH.pdf',2011,339],
+            [46,'Licor de Durazno.','licDurazno.png','licDurazno.pdf',2011,354],
+            [47,'Ate de Durazno.','AteDurazno.png','AteDurazno.pdf',2011,334],
+            [48,'Extracción y purificación de mucilago de nopal.','extMuNopal.png','extMuNopal.pdf',2011,503],
+            [49,'Orejones de durazno deshidratados con energía solar.','oreDurazno.png','oreDurazno.pdf',2011,332],
+            [50,'Técnicas para la transformación de leche de cabra en zonas marginales.','tecLecheCabra.png','tecLecheCabra.pdf',2011,330],
+            [51,'La interacción de un macho cabrío sexualmente activo con un tratamiento fotoperíodico reduce la estacionalidad en cabras anestricas.','machoCabrio.png','machoCabrio.pdf',2011,329],
+            [52,'Producción de forraje con cereales de grano pequeño.','procForrCP.png','procForrCP.pdf',2011,405],
+            [53,'Amarillamientos del chile para secado.','amaChileSecado.png','amaChileSecado.pdf',2011,330],
+            [54,'Ecología del hongo causante de la pudrición blanca.','ecoHongo.png','ecoHongo.pdf',2011,367],
+            [55,'Uso de zeolita para captura de nitrógeno en estiércol bovino','usoZeolita.png','usoZeolita.pdf',2012,328],
+            [56,'Producción de plántula de chile en invernadero: Manual para el productor.','plantulaChileMa.png','plantulaChileMa.pdf',2012,333],
+            [57,'Metodología para el diseño, aplicación y análisis de encuestas sobre adopción de tecnologías en productores rurales.','encuestasRurales.png','encuestasRurales.pdf',2012,325],
+            [58,'Manejo de enfermedades virales de ajo en Zacatecas.','viralesAjo.png','viralesAjo.pdf',2012,353],
+            [59,'Producción de chile seco con riego por goteo sub-superficial.','prodChileSe.png','prodChileSe.pdf',2012,327],
+            [60,'Manejo de plantaciones de nopal tunero en el Altiplano Potosino','planNopTun.png','planNopTun.pdf',2012,354],
+            [61,'Producción y comercialización del durazno criollo de Zacatecas.','proComDurCriollo.png','proComDurCriollo.pdf',2012,332],
+            [64,'Avances de investigación sobre corteza corchosa–madera rugosa de vid en Aguascalientes.','VidAgus.jpg','VidAgus.pdf',2010,337],
+            [65,'Sistema en línea para programación de riego de chile y frijol en Zacatecas.','sisRieg.jpg','sisRieg.pdf',2012,330],
+            [66,'Sistema de alerta para conchuela del frijol y gusano cogollero en el estado de Zacatecas.','sisPlaga.jpg','sisPlaga.pdf',2012,327],
+            [67,'Alimentación y manejo de bovinos en agostadero durante épocas de sequía.','alimmase.jpg','alimmase.pdf',2012,381],
+            [68,'Prácticas de restauración de suelos para la conservación del agua.','ressuel.jpg','ressuel.pdf',2012,327],
+            [69,'Bancos de proteína para rumiantes en el Semiárido Mexicano','bancpro.jpg','bancpro.pdf',2012,468],
+            [70,'Carga animal del pastizal mediano abierto en zacatecas (Segundo trimestre del 2007)','caan2t.jpg','caan2t.pdf',2007,332],
+            [71,'Carga animal del pastizal mediano abierto en zacatecas (Tercer trimestre del 2007)','caan3t.jpg','caan3t.pdf',2007,334],
+            [72,'Carga animal del pastizal mediano abierto en zacatecas (Cuarto trimestre del 2007)','caan4t.jpg','caan4t.pdf',2007,328],
+            [73,'Manejo de las principales enfermedades del chile para secado en el norte centro de México.','EnfChilS.png','EnfChilS.pdf',2013,327],
+            [74,'Selección y conservación de semilla de chile: primer paso para una buena cosecha.','semillaCH.png','semillaCH.pdf',2013,326],
+            [75,'Virus y fitoplasmas asociados con el cultivo de chile para secado en el norte centro de México.','VFcultivoCh.png','VFcultivoCh.pdf',2013,326],
+            [76,'Presencia y manejo de los virus hoja de abanico y enrollamiento de la hoja en viñedos de Aguascalientes.','vhojaA.png','vhojaA.pdf',2013,357],
+            [77,'Control de Malezas con Escardas y Herbicidas Preemergentes en Frijol en Zacatecas.','Control_de_Malezas.png','Control_de_Malezas.pdf',2004,328],
+            [78,'Barretero, variedad de ajo jaspeado para Zacatecas.','barretero.png','barretero.pdf',2014,328],
+            [79,'Desgranadora de ajo para pequeños productores.','desgranadoAjo.png','desgranadoAjo.pdf',2014,353],
+            [80,'Guía para producción de cebolla en Zacatecas.','prodCebolla.png','prodCebolla.pdf',2014,328],
+            [81,'Microsilos: Una alternativa para pequeños productores.','microsilos.png','microsilos.pdf',2014,328],
+            [82,'Nuevas variedades de frijol para el estado de Zacatecas.','nuevaVariedadFrijol.png','nuevaVariedadFrijol.pdf',2014,401],
+            [83,'Prácticas agronómicas para mejorar el suelo cultivado con chile Mirasol.','mejoraSuelo.png','mejoraSuelo.pdf',2014,328],
+            [84,'Producción de semilla de frijol.','produccionSemillaFrijol.png','produccionSemillaFrijol.pdf',2014,334],
+            [85,'Selección y almacenamiento de semilla de frijol.','almacenamientoFrijol.png','almacenamientoFrijol.pdf',2014,358],
+            [86,'Tipificación fisicoquímica y productos agroindustriales de ajos zacatecanos.','fisicoquimica.png','fisicoquimica.pdf',2014,339],
+            [87,'Manejo de enfermedades de los almácigos tradicionales de chile para secado en Zacatecas.','manejoEAlmacigosChile.png','manejoEAlmacigosChile.pdf',2014,409],
+            [88,'Fitoplasmas: Otros agentes fitopatógenos.','aFitopatogenos.png','aFitopatogenos.pdf',2014,331],
+            [89,'Incidencia de enfermedades parasitarias de chile en el norte centro de México.','eParaChile.png','eParaChile.pdf',2014,352],
+            [90,'Virus y fitoplasmas de chile: Una perspectiva regional.','viFitoChileRegional.png','viFitoChileRegional.pdf',2014,334],
+            [91,'Variedades de Manzana recomendadas para las serranías de Hidalgo y Querétaro.','vManzHQ.png','vManzHQ.pdf',2010,330],
+            [92,'Principales cultivares mexicanos de nopal tunero.','pCultMNTuna.png','pCultMNTuna.pdf',2000,361],
+            [93,'Variedades mejoradas y selecciones de Durazno del INIFAP.','varDurMInifap.png','varDurMInifap.pdf',2011,343],
+            [94,'Cultivo del chile en México, Tendencias de producción y problemas fitosanitarios actuales.','cultChprofit.png','cultChprofit.pdf',2012,336],
+            [95,'Comportamiento Agronómico del Pasto Banderilla [Bouteloua curtipendula (Michx.) Torr.] en el Altiplano de Zacatecas.','banderilla.png','banderilla.pdf',2015,330],
+            [96,'Sistema de producción de forrajes de temporal una opción para la reconversión productiva','sproduccion14.png','sproduccion14.pdf',2014,328],
+            [97,'Candidatus Phytoplasma trifolii: Un nuevo patogeno infectando las plantas de chile para secado en Zacatecas, México.','cptChilesecado.png','cptChilesecado.pdf',2015,328],
+            [99,'Distribución de vectores y virus en frutales de hueso en Aguascalientes y Zacatecas.','vectoresVirusHueso.png','vectoresVirusHueso.pdf',2015,383],
+            [100,'Galletas con Harina de Frijol de alta calidad nutricional y nutraceutica.','galletasHFrijol.png','galletasHFrijol.pdf',2015,330],
+            [101,'La cabra criolla en el Altiplano Potosino: Su potencial lechero y desarrollo de cabritos.','cabraCriolla.png','cabraCriolla.pdf',2015,327],
+            [102,'Las enfermedades causadas por virus más comunes en el chile en Aguascalientes.','enfVisrusAguas.png','enfVisrusAguas.pdf',2015,330],
+            [103,'Producción y calidad de leche de cabras criollas norte-centro de México manejadas bajo dos sistemas de producción.','prodCalLecheCC.png','prodCalLecheCC.pdf',2015,326],
+            [104,'Metodología para la extracción, identificación y cuantificación de ácidos grasos en la dieta y leche de cabras.','metoAcidosGLeche.png','metoAcidosGLeche.pdf',2015,356],
+            [105,'Platero, nueva variedad de ajo Jaspeado para Zacatecas.','plateroAjoZac.png','plateroAjoZac.pdf',2015,370],
+            [106,'Presencia de Candidatus Liberibacter solanacearum en Chile para secado en Durango, México.','CLsChileSecadoDGO.png','CLsChileSecadoDGO.pdf',2015,383],
+            [107,'Selección de materiales promesa de frijol para el estado de Zacatecas.','matPromesaFrijol.png','matPromesaFrijol.pdf',2015,330],
+            [108,'Las enfermedades causadas por virus más comunes en el Chile para Secado en Aguascalientes.','enfComunesChileAgs.png','enfComunesChileAgs.pdf',2015,413],
+            [109,'El banco de germoplasma de chile en el Campo Experimental Zacatecas.','Bgermoplasmachile.png','Bgermoplasmachile.pdf',2016,352],
+            [110,'Cambios en el metabolismo de los fenilpropanoides en plantas de chile tipo mirasol infectadas por fitoplasma.','Fenilpropanoides.png','Fenilpropanoides.pdf',2016,332],
+            [111,'Candidatus Liberibacter Solanacearum: un nuevo fitopatogeno en el cultivo de chile en el norte centro de México.','LiberibacterSolanacearum.png','LiberibacterSolanacearum.pdf',2016,329],
+            [112,'Presencia de chicharritas (hemiptera:cicadellidae) durante el invierno en Zacatecas y Aguascalientes.','Presenciachicharritas.png','Presenciachicharritas.pdf',2016,332],
+            [113,'La vida en el suelo es la base de la fertilidad de los suelos agrícolas','vidaSueloAgri.png','vidaSueloAgri.pdf',2016,329],
+            [114,'Reducción de la irrigación: una alternativa para mejorar la productividad del agua de riego en la producción de chile cv. Mirasol','redIrrMirasol.png','redIrrMirasol.pdf',2016,332],
+            [115,'Comportamiento morfológico y productivo de Colectas Base de Gramíneas nativas e introducidas en el altiplano de Zacatecas.','ColectasGramineas16.png','ColectasGramineas16.pdf',2016,331],
+            [116,'Tecnología para la producción de Cultivos, en el área de influencia del Campo Experimental Zacatecas.','guiaTecnicaZac.png','guiaTecnicaZac.pdf',2016,337],
+            [117,'Patrimonio Fitogenético: Banco De Germoplasma de semillas ortodoxas del Campo Experimental Zacatecas.','Folleto Tecnico 81.png','Folleto Tecnico 81.pdf',2017,336],
+            [118,'Comparacion Morfologica de poblaciones de Circulifer Tenellus muestreadas En Zacatecas.','Folleto Tecnico 83.png','Folleto Tecnico 83.pdf',2017,333],
+            [119,'Curtovirus Comos agentes Fitopatógenos en el Norte Centro De México.','Folleto Tecnico 84.png','Folleto Tecnico 84.pdf',2017,329],
+            [120,'La Mancha Púrpura de la Zanahoria en Zacatecas; Una Nueva Enfermedad.','Folleto Tecnico 85.png','Folleto Tecnico 85.pdf',2017,335],
+            [121,'El Moho Blanco de la Lechuga causado por Sclerotinia en Zacatecas.','Folleto Tecnico 86.png','Folleto Tecnico 86.pdf',2017,332],
+            [122,'Diseño de transmisión de Fitoplasmas a Catharanthus Roseus como reservorio natural.','Folleto Tecnico 87.png','Folleto Tecnico 87.pdf',2017,333],
+            [123,'Identificación de enfermedades causadas por Bacterias y Nematodos en cultivos de Aguascalientes, Durango Y Zacatecas.','Folleto Tecnico 89.png','Folleto Tecnico 89.pdf',2017,464],
+            [124,'Identificación de enfermedades causadas por Hongos en cultivos de Aguascalientes, Durango Y Zacatecas.','Folleto Tecnico 90.png','Folleto Tecnico 90.pdf',2017,332],
+            [125,'Identificación de Enfermedades causadas por virus en cultivos de Aguascalientes, Durango Y Zacatecas.','Folleto Tecnico 91.png','Folleto Tecnico 91.pdf',2017,332],
+            [126,'Cambio climático y sus efectos en el potencial productivo de chile en el norte centro de México.','Folleto Tecnico 88.png','Folleto Tecnico 88.pdf',2017,336],
+            [127,'Variedades, portainjertos y prácticas agronómicas para la producción de uva de mesa en Zacatecas.','Folleto Tecnico 82.png','Folleto Tecnico 82.pdf',2017,331],
+            [129,'P.E.: Accesiones de Opuntia Spp. del banco de germoplasma del Cezac.','PE23.png','PE23OpuntiaAccesiones.pdf',2018,330],
+            [130,'Uso de descriptores para la caracterización fenológica del banco de germoplasma de Opuntia del Cezac.','FT99.png','FT99FolletoUsodescriptores.pdf',2018,330],
+            [131,'Sanidad de la semilla de Ajo en Aguascalientes y Zacatecas, México Centro.','FT98.png','FT98FolletoAjo.pdf',2018,327],
+            [132,'Hongos y Nematodos asociados con la pudrición de la corona de la Alfalfa en el Norte Centro de México.','FT97.png','FT97FolletoAlfalfa.pdf',2018,335],
+            [133,'Identificación molecular de fitoplasmas en el cultivo de Brócoli (Brassica Oleracea) en Aguascalientes, México.','FT95.png','FT95FolletoBrocoli.pdf',2018,330],
+            [134,'Identificación molecular de la presencia de Fitoplasmas en el cultivo de Tomatillo (Physalis Ixocarpa brot. Ex Hornem) en Zacatecas.','FT93.png','FT93FolletoTomatillo.pdf',2018,349],
+            [135,'Géneros de Chicharritas (Hemiptera:Cicadellidae) presentes en el cultivo de Chile en el Norte Centro de México.','FT92.png','FT92FolletoGenerosdeChicharritas.pdf',2018,338],
+            [136,'Diagnóstico e identificación de begomovirus en el cultivo de chile en los estados de Zacatecas y Durango','101 Folleto Begomovirus Zac-Dgo.png','101 Folleto Begomovirus Zac-Dgo.pdf',2019,331],
+            [137,'Evaluación de la interacción directa de cepas de Fusarium equiseti y Fusarium graminearum en plantas de Arabidopsis thaliana','104 Folleto Evaluacion de la interaccion 5 cepas.png','104 Folleto Evaluacion de la interaccion 5 cepas.pdf',2019,334],
+            [138,'Evaluación de la capacidad benéfica e identificación molecular de cepas de Fusarium spp aisladas de plantas de maíz','105 Folleto Identificacion Molecular Fusarim.png','105 Folleto Identificacion Molecular Fusarim.pdf',2019,333],
+            [139,'Calidad física y nutraceutica de chile secado por diferentes métodos.','secadoChile.png','secadoChile.pdf',2019,337],
+            [140,'Patógenos asociados con la virosis del chile en el estado de Durango','Patog virosis.png','Patog virosis.pdf',2020,333],
+            [141,'Caracterización de genotipos de durazno para Zacatecas y regiones agroecológicas similares','Carac durazno.png','Carac durazno.pdf',2021,332],
+            [142,'Síntomas provocados por el candidatus phytoplasma trifolii en diferentes hospederos en Zacatecas, México','03 FT 102 Hospederos digital.png','03 FT 102 Hospederos digital.pdf',2019,357],
+            [143,'Géneros de nematodos asociados al cultivo de chile para secado en el altiplano de Zacatecas','04 FT 103 Nemátodos digital.png','04 FT 103 Nemátodos digital.pdf',2019,424],
+            [144,'Gusano cogollero (Spodoptera frugiperda) JE Smith en Zacatecas','07 FT 106 Gusano Cogollero.png','07 FT 106 Gusano Cogollero.pdf',2019,360],
+            [145,'Pérdidas causadas por la Virosis en el cultivo de chile del área de poanas, Durango','poanas.png','20312PUB02.pdf',2020,332],
+            [146,'Arreglos topológicos y densidades de siembra en el cultivo de frijol de riego en Zacatecas','20312PUB04 Folleto JA.png','20312PUB04 Folleto JA.pdf',2021,391],
+            [147,'Manejo de la pudrición de la raíz del frijol en Zacatecas','20312PUB01 Folleto JA.png','20312PUB01 Folleto JA.pdf',2021,336],
+            [148,'Combate de la pudrición blanca del ajo y la cebolla en Zacatecas','20312PUB02 Folleto MR.png','20312PUB02 Folleto MR.pdf',2021,330],
+            [149,'Trampa alimenticia para el manejo agroecológico de insectos plaga en cultivos básicos y hortalizas','20312PUB03 Folleto JM.png','20312PUB03 Folleto JM.pdf',2021,561],
+            [150,'Virus presentes en ajo, cebolla y chile en el norte centro de México','Libro Técnico Virus.png','Libro Técnico Virus.pdf',2021,331],
+            [151,'Desplegable - Variedades de durazno: estudio sensorial y mercados nacionales','desdurazno.png','desdurazno.pdf',2022,337],
+            [152,'Técnicas para estimar y monitorear la demanda de agua en los cultivos','Libro Técnico Num 17 2018.png','Libro Técnico Num 17 2018.pdf',2018,339],
+            [153,'Carga animal del pastizal mediano abierto en Zacatecas (Invierno 2007-2008)','cargaAnimal2008.png','cargaAnimal2008.pdf',2008,361],
+            [154,'Aprovechamiento sostenible de pastizales a través del ajuste de carga animal en zonas secas','aproCargaAni.png','aproCargaAni.pdf',2018,376],
+            [155,'Tallarín enriquecido con harina de frijol: aceptación en el mercado y costo de producción','42 Folleto Productores Tallarín_seg.png','42 Folleto Productores Tallarín_seg.pdf',2022,330],
+            [156,'Combate de enfermedades provocadas por virus en hortalizas','43 Folleto para productores Virus_seg.png','43 Folleto para productores Virus_seg.pdf',2022,329],
+            [157,'Sistemas de siembra recomendados para frijol bajo temporal en Zacatecas','44 Folleto para productores Sistemas_seg.png','44 Folleto para productores Sistemas_seg.pdf',2022,331],
+            [158,'Funcionalidad de las cáscaras de la tuna Roja Lisa: Parte I (in vitro)','111 Folleto Técnico Funcionalidad_seg.png','111 Folleto Técnico Funcionalidad_seg.pdf',2022,366],
+            [159,'Diseño, aplicación y análisis de tipología de productores agropecuarios','113 Folleto Técnico Diseño_seg.png','113 Folleto Técnico Diseño_seg.pdf',2022,294],
+            [160,'Cambios en la concentración de metabolitos en plantas de chile por efecto de la luz ultravioleta','114 Folleto Técnico Metabolitos_seg.png','114 Folleto Técnico Metabolitos_seg.pdf',2022,333],
+            [161,'Identificación molecular del agente causal asociado a la sintomatología del engrosamiento del cladodio (Opuntia spp.) en Zacatecas','115 Folleto Técnico Identificación_seg.png','115 Folleto Técnico Identificación_seg.pdf',2022,329],
+            [162,'El riego y almacenamiento modifican el contenido de pigmentos y fenoles de la tuna Roja Lisa','112 Folleto Técnico Tuna Roja Lisa_seg.png','112 Folleto Técnico Tuna Roja Lisa_seg.pdf',2022,327],
+            [163,'Planeación del ciclo Agrícola en unidades de Producción de riego en Zacatecas','05-FT 96 Planeacion 2018.png','05-FT 96 Planeacion 2018.pdf',2018,331],
+            [164,'Estadísticas climatológicas horarias del Estado de Zacatecas (Período 2002-2022)','estClima_Zac.png','estClima_Zac.pdf',2023,334],
+            [165,'Tecnología para la producción de maíz en condiciones de temporal en Zacatecas','FP46 RSan.png','FP46 RSan.pdf',2023,371],
+            [166,'Suplementación alimenticia en colonias de abejas melíferas del árido y semiárido de México','FP47 RGut.png','FP47 RGut.pdf',2023,350],
+            [167,'Establecimiento de zacate buffel Pennisetum ciliaris L bajo condiciones de temporal, en el semiárido de Coahuila, México','FT118 RGut.png','FT118 RGut.pdf',2023,345],
+            [168,'Efecto antidiabético de tallarines con harina extruida de cotiledones de frijol en un modelo in vivo','FT120 RCruz.png','FT120 RCruz.pdf',2023,343],
+            [169,'Funcionalidad de las cáscaras de la tuna Roja Lisa Parte II, in vivo','FT121 MHer.png','FT121 MHer.pdf',2023,348],
+        ];
+
+        DB::table('publicaciones')->delete();
+
+        // Insertar científicas
+        $registrosCientificos = array_map(function (array $r) use ($now) {
             return [
-                'titulo' => $p['titulo'] ?? '',
-                'titulo_en' => $p['titulo_en'] ?? $p['titulo_ingles'] ?? null,
-                'year' => $p['year'] ?? null,
-                'tipo' => $p['tipo'] ?? 'pdf',
-                'portada_path' => $p['portada_path'] ?? $p['portada'] ?? null,
-                'file_path' => null,
-                'external_url' => $url,
-                'created_by' => null,
+                'titulo'       => $this->limpiar($r[1]),
+                'titulo_en'    => $this->limpiar($r[2] ?? null),
+                'ano'          => $r[3],
+                'categoria'    => 'cientifica',
+                'tipo'         => 'pdf',
+                'file_path'    => $r[4] ?? null,
+                'portada_path' => null,
+                'mensaje'      => $this->limpiar($r[5] ?? null),
+                'cuenta'       => $r[7] ?? 0,
                 'is_published' => true,
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at'   => $now,
+                'updated_at'   => $now,
             ];
-        }, $publicacionesTecnicasRaw);
+        }, $cientificas);
 
-        DB::table('publicaciones_tecnicas')->delete();
-        if (!empty($publicacionesTecnicas)) {
-            DB::table('publicaciones_tecnicas')->insert($publicacionesTecnicas);
+        foreach (array_chunk($registrosCientificos, 50) as $chunk) {
+            DB::table('publicaciones')->insert($chunk);
         }
 
-        // Datos para publicaciones cientificas
-        $publicacionesCientificasRaw = $this->loadCatalogo($catalogPath, 'publicacionesCientificas');
-        if (empty($publicacionesCientificasRaw)) {
-            $publicacionesCientificasRaw = [
-            [
-                'titulo' => 'Efecto de la fertilización en maíz bajo condiciones de temporal',
-                'titulo_ingles' => 'Effect of fertilization on maize under rainfed conditions',
-                'year' => 2023,
-                'tipo' => 'pdf',
-                'portada' => 'imagenes/portadas/tec01.jpg',
-                'url' => 'pdfs/tec01.pdf',
-            ],
-            [
-                'titulo' => 'Manejo de plagas en cultivos de frijol en el Altiplano',
-                'titulo_ingles' => 'Pest management in bean crops in the Altiplano',
-                'year' => 2023,
-                'tipo' => 'pdf',
-                'portada' => 'imagenes/portadas/tec02.jpg',
-                'url' => 'pdfs/tec02.pdf',
-            ],
-            // ...otros datos omitidos para brevedad...
-            ];
-        }
-
-        $publicacionesCientificas = array_map(function (array $p) use ($now) {
-            $url = $p['url'] ?? null;
-            $isHttp = is_string($url) && preg_match('/^https?:\/\//i', $url);
-
+        // Insertar técnicas
+        $registrosTecnicos = array_map(function (array $r) use ($now) {
             return [
-                'titulo' => $p['titulo'] ?? '',
-                'titulo_en' => $p['titulo_en'] ?? $p['titulo_ingles'] ?? null,
-                'year' => $p['year'] ?? null,
-                'tipo' => $p['tipo'] ?? 'pdf',
-                'portada_path' => $p['portada_path'] ?? $p['portada'] ?? null,
-                'file_path' => $isHttp ? null : $url,
-                'external_url' => $isHttp ? $url : null,
-                'created_by' => null,
+                'titulo'       => $this->limpiar($r[1]),
+                'titulo_en'    => null,
+                'ano'          => $r[4],
+                'categoria'    => 'tecnica',
+                'tipo'         => 'pdf',
+                'file_path'    => $r[3],
+                'portada_path' => $r[2],
+                'mensaje'      => null,
+                'cuenta'       => $r[5],
                 'is_published' => true,
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at'   => $now,
+                'updated_at'   => $now,
             ];
-        }, $publicacionesCientificasRaw);
+        }, $tecnicas);
 
-        DB::table('publicaciones_cientificas')->delete();
-        if (!empty($publicacionesCientificas)) {
-            DB::table('publicaciones_cientificas')->insert($publicacionesCientificas);
+        foreach (array_chunk($registrosTecnicos, 50) as $chunk) {
+            DB::table('publicaciones')->insert($chunk);
         }
 
-        // Datos para publicaciones ilustraciones
-        $publicacionesIlustracionesRaw = $this->loadCatalogo($catalogPath, 'publicacionesIlustraciones');
-        $publicacionesIlustraciones = array_map(function (array $p) use ($now) {
-            $url = $p['url'] ?? null;
-            $isHttp = is_string($url) && preg_match('/^https?:\/\//i', $url);
-
-            return [
-                'titulo' => $p['titulo'] ?? '',
-                'titulo_en' => $p['titulo_en'] ?? $p['titulo_ingles'] ?? null,
-                'year' => $p['year'] ?? null,
-                'tipo' => $p['tipo'] ?? 'ilustraciones',
-                'portada_path' => $p['portada_path'] ?? $p['portada'] ?? null,
-                'file_path' => $isHttp ? null : $url,
-                'external_url' => $isHttp ? $url : null,
-                'created_by' => null,
-                'is_published' => true,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
-        }, $publicacionesIlustracionesRaw);
-
-        DB::table('publicaciones_ilustraciones')->delete();
-        if (!empty($publicacionesIlustraciones)) {
-            DB::table('publicaciones_ilustraciones')->insert($publicacionesIlustraciones);
-        }
+        $this->command->info('Importadas ' . count($cientificas) . ' publicaciones científicas y ' . count($tecnicas) . ' técnicas.');
     }
 }
